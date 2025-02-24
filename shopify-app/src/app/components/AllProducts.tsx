@@ -18,12 +18,10 @@ export default function AllProducts() {
 
   async function fetchProducts() {
     try {
-      console.log('Fetching products with cursor:', cursor);
       setLoading(true);
       setError(null);
       
       const response = await getAllProducts(cursor);
-      console.log('Products response:', JSON.stringify(response, null, 2));
       
       if (!response?.products?.edges) {
         throw new Error('No products found');

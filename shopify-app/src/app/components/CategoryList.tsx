@@ -18,7 +18,7 @@ interface Collection {
     id: string;
     title: string;
     description?: string;
-    source?: 'shopify' | 'mongodb'; // Add source to track where the collection comes from
+    source?: 'shopify' | 'mongodb'; 
   };
 }
 
@@ -27,53 +27,43 @@ export default function CategoryList({ onCategorySelect, selectedCategory }: Cat
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchCollections();
-  }, []);
-
-  async function fetchCollections() {
+  const fetchCollections = async () => {
     try {
       setLoading(true);
-      // Fetch Shopify collections
-      const shopifyResponse = await getAllCollections(null);
-      const shopifyCollections = (shopifyResponse?.collections?.edges || []).map(edge => ({
+      const response = await fetch('/api/collections');
+      const data = await response.json();
+      const collections = data.collections.map(collection => ({
         node: {
-          ...edge.node,
-          source: 'shopify' as const
-        }
-      }));
-      
-      // Fetch MongoDB collections
-      const mongoResponse = await fetch('/api/collections');
-      const mongoData = await mongoResponse.json();
-      const mongoCollections = (mongoData.collections || []).map(collection => ({
-        node: {
-          id: collection.id,
+          id: collection.id || collection._id,
           title: collection.title,
           description: collection.description || '',
-          source: 'mongodb' as const
+          isShopifyCollection: collection.isShopifyCollection || false
         }
       }));
       
-      // Combine both sets of collections
-      const allCollections = [...shopifyCollections, ...mongoCollections];
-      console.log('All collections:', allCollections); // Debug log
-      setCollections(allCollections);
+      setCollections(collections);
     } catch (error) {
       console.error('Error fetching collections:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch collections');
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  const handleCategorySelect = async (collectionId: string | null) => {
-    if (!collectionId) {
-      onCategorySelect(null);
-      return;
-    }
+  useEffect(() => {
+    fetchCollections();
 
-    // Simply pass the collection ID to parent component
+    const handleCollectionsUpdate = () => {
+      fetchCollections();
+    };
+
+    window.addEventListener('collectionsUpdated', handleCollectionsUpdate);
+    return () => {
+      window.removeEventListener('collectionsUpdated', handleCollectionsUpdate);
+    };
+  }, []);
+
+  const handleCategorySelect = (collectionId: string | null) => {
     onCategorySelect(collectionId);
   };
 
@@ -82,9 +72,9 @@ export default function CategoryList({ onCategorySelect, selectedCategory }: Cat
   if (!collections.length) return <div>No categories found.</div>;
 
   return (
-    <div className="max-w-[1024px] mx-auto mb-12">
-      <div className="flex items-center gap-2">
-        <div className="w-[90%] overflow-hidden">
+    <div className="max-w-[924px] mx-auto mb-12">
+      <div className="flex items-center justify-between gap-2">
+        <div className="w-[95%] overflow-hidden">
           <Swiper
             modules={[Navigation, FreeMode]}
             navigation={{
@@ -115,6 +105,19 @@ export default function CategoryList({ onCategorySelect, selectedCategory }: Cat
               </button>
             </SwiperSlide>
 
+            {/* Unassigned Products Button */}
+            <SwiperSlide key="unassigned-products" className="!w-auto">
+              <button 
+                onClick={() => onCategorySelect('unassigned')}
+                className={`whitespace-nowrap px-6 py-2 rounded-full transition-all duration-300 select-none
+                  ${selectedCategory === 'unassigned' 
+                    ? 'bg-[#fe6900] text-white hover:bg-[#e55f00]' 
+                    : 'bg-gray-100 text-neutral-700 hover:bg-[#ffe4d3]'}`}
+              >
+                Unassigned
+              </button>
+            </SwiperSlide>
+
             {/* Collection Buttons */}
             {collections.map(({ node: collection }, index) => (
               <SwiperSlide 
@@ -136,7 +139,7 @@ export default function CategoryList({ onCategorySelect, selectedCategory }: Cat
         </div>
 
         {/* Navigation Buttons */}
-        <div className="flex gap-1 flex-shrink-0 w-[40px] ml-[50px]"> {/* Added fixed width */}
+        <div className="flex gap-1 flex-shrink-0 w-[40px] "> 
           <button 
             className="h-[24px] w-4 flex items-center justify-center bg-transparent text-[#fe6900] hover:bg-gray-50 swiper-button-prev select-none"
             aria-label="Previous"

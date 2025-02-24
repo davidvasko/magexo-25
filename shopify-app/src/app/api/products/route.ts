@@ -11,77 +11,40 @@ export async function GET() {
     const client = await clientPromise;
     const db = client.db("shopify-app");
     
-    // Fix existing products that might have incorrect image structure
-    const productsToFix = await db.collection('products').find({
-      $or: [
-        { images: { $exists: false } },
-        { images: null },
-        { 'images.edges': { $exists: false } }
-      ]
-    }).toArray();
-
-    if (productsToFix.length > 0) {
-      const updatePromises = productsToFix.map(product => {
-        return db.collection('products').updateOne(
-          { _id: product._id },
-          {
-            $set: {
-              images: { edges: [] }
-            }
-          }
-        );
-      });
-
-      await Promise.all(updatePromises);
-    }
-
-    // Get all products after fixes
+    const collections = await db.collection('collections').find({}).toArray();
+    const collectionsMap = new Map(collections.map(c => [c.id, c]));
+    
     const products = await db.collection('products').find({}).toArray();
-    
-    // Get all unique tags from products
     const allTags = [...new Set(products.flatMap(product => product.tags || []))];
-    
-    // Get vendors from Shopify
-    const shopifyVendors = await getAllVendors();
-    
-    // Ensure all products have the required structure
+
     const formattedProducts = products.map(product => {
-      // Ensure images have the correct structure
-      let formattedImages = { edges: [] };
-      if (product.images) {
-        if (Array.isArray(product.images)) {
-          // Handle case where images might be an array
-          formattedImages = {
-            edges: product.images.map(img => ({
+      let formattedCollections = {
+        edges: []
+      };
+
+      if (product.collections) {
+        if (product.collections.edges) {
+          formattedCollections = {
+            edges: product.collections.edges.map(edge => ({
               node: {
-                url: img.url || img,
-                altText: img.altText || null
+                id: edge.node.id,
+                title: collectionsMap.get(edge.node.id)?.title || edge.node.title || '',
+                handle: collectionsMap.get(edge.node.id)?.handle || ''
               }
             }))
-          };
-        } else if (product.images.edges) {
-          // Already in correct format
-          formattedImages = product.images;
-        } else if (product.images.url) {
-          // Single image object
-          formattedImages = {
-            edges: [{
-              node: {
-                url: product.images.url,
-                altText: product.images.altText || null
-              }
-            }]
           };
         }
       }
 
       return {
         ...product,
-        images: formattedImages,
-        variants: product.variants || { 
+        _id: product._id.toString(),
+        collections: formattedCollections,
+        images: product.images || { edges: [] },
+        variants: product.variants || {
           edges: [{
             node: {
-              id: `variant-${product.id}`,
+              id: `variant-${product._id}`,
               title: 'Default Variant',
               price: { amount: '0', currencyCode: 'CZK' },
               sku: '',
@@ -96,7 +59,7 @@ export async function GET() {
     return NextResponse.json({ 
       products: formattedProducts,
       tags: allTags,
-      vendors: shopifyVendors // Return Shopify vendors
+      vendors: [...new Set(products.map(product => product.vendor).filter(Boolean))]
     });
   } catch (error) {
     console.error('Error in GET products:', error);
@@ -110,7 +73,53 @@ export async function POST(request: Request) {
     const client = await clientPromise;
     const db = client.db("shopify-app");
 
-    // Create a handle from the title
+    const isVariant = formData.get('isVariant') === 'true';
+    const parentProductId = formData.get('parentProductId');
+
+    if (isVariant && parentProductId) {
+      const variant = {
+        id: `variant-${new Date().getTime()}`,
+        title: formData.get('title') as string,
+        price: {
+          amount: formData.get('price') as string || '0',
+          currencyCode: 'CZK'
+        },
+        compareAtPrice: {
+          amount: formData.get('compareAtPrice') as string || '',
+          currencyCode: 'CZK'
+        },
+        sku: formData.get('sku') as string || '',
+        stockQuantity: parseInt(formData.get('stockQuantity') as string || '0'),
+        availableForSale: parseInt(formData.get('stockQuantity') as string || '0') > 0
+      };
+
+      const result = await db.collection('products').updateOne(
+        { id: parentProductId },
+        { 
+          $push: { 
+            'variants.edges': { 
+              node: variant 
+            } 
+          },
+          $set: {
+            updatedAt: new Date().toISOString()
+          }
+        }
+      );
+
+      if (result.modifiedCount === 0) {
+        return NextResponse.json(
+          { success: false, error: 'Product not found' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        variant 
+      });
+    }
+
     const title = formData.get('title') as string;
     if (!title) {
       return NextResponse.json(
@@ -122,7 +131,6 @@ export async function POST(request: Request) {
     const handle = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
     try {
-      // Process images
       const uploadedFiles = formData.getAll('images');
       let imageEdges = [];
 
@@ -153,14 +161,14 @@ export async function POST(request: Request) {
           }
         }));
 
-        // Filter out any failed image uploads
         imageEdges = imageEdges.filter(Boolean);
       }
 
       const collections = JSON.parse(formData.get('collections') as string || '[]');
-      const collectionEdges = collections.map(collectionId => ({
+      const collectionEdges = collections.map((collectionId: string) => ({
         node: {
-          id: collectionId
+          id: collectionId,
+          title: ''
         }
       }));
       
@@ -179,6 +187,10 @@ export async function POST(request: Request) {
               title: 'Default Variant',
               price: {
                 amount: formData.get('price') as string || '0',
+                currencyCode: 'CZK'
+              },
+              compareAtPrice: {
+                amount: formData.get('compareAtPrice') as string || '',
                 currencyCode: 'CZK'
               },
               sku: formData.get('sku') as string || '',
@@ -209,9 +221,9 @@ export async function POST(request: Request) {
     }
 
   } catch (error) {
-    console.error('Error creating product:', error);
+    console.error('Error in POST products:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create product: ' + error.message },
+      { success: false, error: 'Failed to process request: ' + error.message },
       { status: 500 }
     );
   }
@@ -219,51 +231,125 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const client = await clientPromise;
-    const db = client.db("shopify-app");
-    
-    // Get the product ID from the URL
-    const url = new URL(request.url);
-    const productId = url.searchParams.get('id');
+    const { searchParams } = new URL(request.url);
+    const productId = searchParams.get('id');
+    const variantId = searchParams.get('variantId');
 
     if (!productId) {
-      return NextResponse.json(
-        { success: false, error: 'Product ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
     }
 
-    // Only allow deletion of custom products
-    const product = await db.collection('products').findOne({
-      id: productId,
-      isCustom: true
-    });
+    const client = await clientPromise;
+    const db = client.db("shopify-app");
 
-    if (!product) {
-      return NextResponse.json(
-        { success: false, error: 'Product not found or cannot be deleted' },
-        { status: 404 }
+    if (variantId) {
+      const product = await db.collection('products').findOne({ id: productId });
+
+      if (!product) {
+        return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+      }
+
+      const updatedVariants = {
+        edges: product.variants.edges.filter(
+          ({ node }: { node: any }) => node.id !== variantId
+        )
+      };
+
+      const result = await db.collection('products').updateOne(
+        { id: productId },
+        { $set: { variants: updatedVariants } }
       );
+
+      if (result.matchedCount === 0) {
+        return NextResponse.json({ error: 'Failed to update product' }, { status: 404 });
+      }
+
+      return NextResponse.json({ success: true });
     }
 
-    // Delete the product
-    const result = await db.collection('products').deleteOne({
-      id: productId,
-      isCustom: true
-    });
+    const result = await db.collection('products').deleteOne({ id: productId });
 
     if (result.deletedCount === 0) {
-      return NextResponse.json(
-        { success: false, error: 'Failed to delete product' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting product:', error);
+    console.error('Error in DELETE products:', error);
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { error: error.message || 'Failed to delete product/variant' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const formData = await request.formData();
+    const productId = new URL(request.url).searchParams.get('id');
+
+    if (!productId) {
+      return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
+    }
+
+    const client = await clientPromise;
+    const db = client.db("shopify-app");
+
+    const collections = JSON.parse(formData.get('collections') as string || '[]');
+    const variants = JSON.parse(formData.get('variants') as string || '[]');
+    const stockQuantity = formData.get('stockQuantity');
+
+    if (variants.edges && variants.edges.length > 0) {
+      variants.edges[0].node = {
+        ...variants.edges[0].node,
+        stockQuantity: parseInt(stockQuantity as string || '0'),
+        availableForSale: parseInt(stockQuantity as string || '0') > 0
+      };
+    }
+    
+    const updateData = {
+      title: formData.get('title'),
+      description: formData.get('description'),
+      vendor: formData.get('vendor'),
+      productType: formData.get('productType'),
+      tags: JSON.parse(formData.get('tags') as string || '[]'),
+      collections: {
+        edges: collections.map((collection: any) => ({
+          node: {
+            id: collection.id || collection.node?.id || '',
+            title: collection.title || collection.node?.title || ''
+          }
+        }))
+      },
+      variants: variants,
+      updatedAt: new Date().toISOString()
+    };
+
+    let query;
+    if (productId.toString().startsWith('gid://')) {
+      query = { id: productId };
+    } else {
+      try {
+        query = { _id: new ObjectId(productId) };
+      } catch {
+        query = { id: productId };
+      }
+    }
+
+    const result = await db.collection('products').updateOne(
+      query,
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error in PUT products:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to update product' },
       { status: 500 }
     );
   }

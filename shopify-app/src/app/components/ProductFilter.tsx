@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Product } from '../types/shopify';
+import { useSearchParams } from 'next/navigation';
 
 interface ProductFilterProps {
   products: Product[];
-  onFilterChange: (filteredProducts: Product[]) => void;
+  onFilterChange: (filteredProducts: Product[], filterState: FilterState, isInitialLoad?: boolean) => void;
 }
 
 interface FilterState {
@@ -23,48 +24,53 @@ interface FilterState {
   updatedBefore: string;
 }
 
-// Helper function for consistent date formatting
 const formatDateForInput = (dateString: string) => {
   const date = new Date(dateString);
   return date.toISOString().split('T')[0];
 };
 
 export default function ProductFilter({ products, onFilterChange }: ProductFilterProps) {
-  // Get unique values for select fields
-  const vendors = [...new Set(products.map(p => p.vendor).filter(Boolean))];
-  const productTypes = [...new Set(products.map(p => p.productType).filter(Boolean))];
-  const allTags = [...new Set(products.flatMap(p => p.tags || []))];
+  const searchParams = useSearchParams();
+  const isFirstRender = useRef(true);
+  const previousFiltersRef = useRef<FilterState | null>(null);
   
   const [filters, setFilters] = useState<FilterState>({
-    title: '',
-    minPrice: '',
-    maxPrice: '',
-    vendor: '',
-    productType: '',
-    tags: [],
-    availability: '',
-    sortBy: '',
-    createdAfter: '',
-    createdBefore: '',
-    updatedAfter: '',
-    updatedBefore: '',
+    title: searchParams.get('title') || '',
+    minPrice: searchParams.get('minPrice') || '',
+    maxPrice: searchParams.get('maxPrice') || '',
+    vendor: searchParams.get('vendor') || '',
+    productType: searchParams.get('productType') || '',
+    tags: searchParams.get('tags')?.split(',').filter(Boolean) || [],
+    availability: searchParams.get('availability') || '',
+    sortBy: searchParams.get('sortBy') || '',
+    createdAfter: searchParams.get('createdAfter') || '',
+    createdBefore: searchParams.get('createdBefore') || '',
+    updatedAfter: searchParams.get('updatedAfter') || '',
+    updatedBefore: searchParams.get('updatedBefore') || '',
   });
 
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Add ref to store previous filtered results
   const previousResultsRef = useRef<Product[]>([]);
 
-  // Add memoization for filtered products
   useEffect(() => {
+    if (isFirstRender.current) {
+      previousFiltersRef.current = filters;
+      isFirstRender.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (JSON.stringify(previousFiltersRef.current) === JSON.stringify(filters)) {
+      return;
+    }
+
     const applyFilters = () => {
       let filteredProducts = products.filter(product => {
-        // Title filter
         if (filters.title && !product.title.toLowerCase().includes(filters.title.toLowerCase())) {
           return false;
         }
 
-        // Price filter
         const minPrice = parseFloat(filters.minPrice);
         const maxPrice = parseFloat(filters.maxPrice);
         const productPrice = parseFloat(product.variants.edges[0]?.node.price.amount || '0');
@@ -72,25 +78,20 @@ export default function ProductFilter({ products, onFilterChange }: ProductFilte
         if (!isNaN(minPrice) && productPrice < minPrice) return false;
         if (!isNaN(maxPrice) && productPrice > maxPrice) return false;
 
-        // Vendor filter
         if (filters.vendor && product.vendor !== filters.vendor) return false;
 
-        // Product type filter
         if (filters.productType && product.productType !== filters.productType) return false;
 
-        // Tags filter
         if (filters.tags.length > 0 && !filters.tags.every(tag => product.tags?.includes(tag))) {
           return false;
         }
 
-        // Availability filter
         if (filters.availability) {
           const isAvailable = product.variants.edges.some(({ node }) => node.availableForSale);
           if (filters.availability === 'in_stock' && !isAvailable) return false;
           if (filters.availability === 'out_of_stock' && isAvailable) return false;
         }
 
-        // Date filters
         if (filters.createdAfter && new Date(product.createdAt) < new Date(filters.createdAfter)) return false;
         if (filters.createdBefore && new Date(product.createdAt) > new Date(filters.createdBefore)) return false;
         if (filters.updatedAfter && new Date(product.updatedAt) < new Date(filters.updatedAfter)) return false;
@@ -99,7 +100,6 @@ export default function ProductFilter({ products, onFilterChange }: ProductFilte
         return true;
       });
       
-      // Add sorting logic
       if (filters.sortBy) {
         filteredProducts.sort((a, b) => {
           switch (filters.sortBy) {
@@ -128,19 +128,20 @@ export default function ProductFilter({ products, onFilterChange }: ProductFilte
 
     const timeoutId = setTimeout(() => {
       const newResults = applyFilters();
+      previousFiltersRef.current = filters;
       
-      // Only update if results have actually changed
-      if (JSON.stringify(previousResultsRef.current) !== JSON.stringify(newResults)) {
-        previousResultsRef.current = newResults;
-        onFilterChange(newResults);
-      }
+      onFilterChange(newResults, filters, isFirstRender.current);
     }, 300);
 
     return () => clearTimeout(timeoutId);
   }, [filters, products, onFilterChange]);
 
+  const vendors = [...new Set(products.map(p => p.vendor).filter(Boolean))];
+  const productTypes = [...new Set(products.map(p => p.productType).filter(Boolean))];
+  const allTags = [...new Set(products.flatMap(p => p.tags || []))];
+
   return (
-    <div className="bg-white shadow-md rounded-xl p-4 max-w-[1024px] mx-auto">
+    <div className="bg-white shadow-md rounded-xl p-4 max-w-[924px] mx-auto">
       <div className="flex justify-between items-center mb-4">
         <div className="flex gap-4 items-center">
           <h2 className="text-xl font-bold text-neutral-800">Filter Products</h2>
@@ -165,10 +166,7 @@ export default function ProductFilter({ products, onFilterChange }: ProductFilte
 
       <div className={`grid gap-6 ${isExpanded ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-4'}`}>
         <div className="space-y-2">
-          <label 
-            htmlFor="search-title"
-            className="block text-sm font-medium text-neutral-800"
-          >
+          <label htmlFor="search-title" className="block text-sm font-medium text-neutral-800">
             Search by Title
           </label>
           <input
@@ -182,10 +180,7 @@ export default function ProductFilter({ products, onFilterChange }: ProductFilte
         </div>
 
         <div className="space-y-2">
-          <label 
-            htmlFor="vendor-select"
-            className="block text-sm font-medium text-neutral-800"
-          >
+          <label htmlFor="vendor-select" className="block text-sm font-medium text-neutral-800">
             Vendor
           </label>
           <select
@@ -202,10 +197,7 @@ export default function ProductFilter({ products, onFilterChange }: ProductFilte
         </div>
 
         <div className="space-y-2">
-          <label 
-            htmlFor="availability-select"
-            className="block text-sm font-medium text-neutral-800"
-          >
+          <label htmlFor="availability-select" className="block text-sm font-medium text-neutral-800">
             Availability
           </label>
           <select
@@ -220,15 +212,9 @@ export default function ProductFilter({ products, onFilterChange }: ProductFilte
           </select>
         </div>
 
-        <div className="space-y-2">
-          <label 
-            htmlFor="sort-select"
-            className="block text-sm font-medium text-neutral-800"
-          >
-            Sort By
-          </label>
+        <div className={`space-y-2 ${isExpanded ? 'hidden' : ''}`}>
+          <label className="block text-sm font-medium text-neutral-800">Sort By</label>
           <select
-            id="sort-select"
             value={filters.sortBy}
             onChange={(e) => setFilters(prev => ({ ...prev, sortBy: e.target.value }))}
             className="w-full px-3 py-2 border rounded-lg text-neutral-800"
@@ -243,102 +229,127 @@ export default function ProductFilter({ products, onFilterChange }: ProductFilte
           </select>
         </div>
 
-        {/* Advanced filters (visible when expanded) */}
-        {isExpanded && (
-          <>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-neutral-800">Price Range</label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  placeholder="Min Price"
-                  value={filters.minPrice}
-                  onChange={(e) => setFilters(prev => ({ ...prev, minPrice: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg text-neutral-800 placeholder-neutral-500"
-                />
-                <input
-                  type="number"
-                  placeholder="Max Price"
-                  value={filters.maxPrice}
-                  onChange={(e) => setFilters(prev => ({ ...prev, maxPrice: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg text-neutral-800 placeholder-neutral-500"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-neutral-800">Product Type</label>
-              <select
-                value={filters.productType}
-                onChange={(e) => setFilters(prev => ({ ...prev, productType: e.target.value }))}
-                className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-              >
-                <option value="" className="text-neutral-800">All Product Types</option>
-                {productTypes.map(type => (
-                  <option key={type} value={type} className="text-neutral-800">{type}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-neutral-800">Tags</label>
-              <select
-                multiple
-                value={filters.tags}
-                onChange={(e) => setFilters(prev => ({
-                  ...prev,
-                  tags: Array.from(e.target.selectedOptions, option => option.value)
-                }))}
-                className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-              >
-                {allTags.map(tag => (
-                  <option key={tag} value={tag} className="text-neutral-800">{tag}</option>
-                ))}
-              </select>
-              <p className="text-xs text-neutral-600">Hold Ctrl/Cmd to select multiple tags</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-neutral-800">Created Date</label>
+        <div className={`
+          col-span-full overflow-hidden transition-[max-height,opacity] duration-500 ease-in-out
+          ${isExpanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}
+        `}>
+          <div className="space-y-6">
+            {/* First row: Price Range, Product Type, Sort By */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
-                <input
-                  type="date"
-                  placeholder="Created After"
-                  value={filters.createdAfter}
-                  onChange={(e) => setFilters(prev => ({ ...prev, createdAfter: e.target.value }))}
+                <label className="block text-sm font-medium text-neutral-800">Price Range</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="Min Price"
+                    value={filters.minPrice}
+                    onChange={(e) => setFilters(prev => ({ ...prev, minPrice: e.target.value }))}
+                    className="w-full px-3 py-2 border rounded-lg text-neutral-800 placeholder-neutral-500"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Max Price"
+                    value={filters.maxPrice}
+                    onChange={(e) => setFilters(prev => ({ ...prev, maxPrice: e.target.value }))}
+                    className="w-full px-3 py-2 border rounded-lg text-neutral-800 placeholder-neutral-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-neutral-800">Product Type</label>
+                <select
+                  value={filters.productType}
+                  onChange={(e) => setFilters(prev => ({ ...prev, productType: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-                />
-                <input
-                  type="date"
-                  placeholder="Created Before"
-                  value={filters.createdBefore}
-                  onChange={(e) => setFilters(prev => ({ ...prev, createdBefore: e.target.value }))}
+                >
+                  <option value="" className="text-neutral-800">All Product Types</option>
+                  {productTypes.map(type => (
+                    <option key={type} value={type} className="text-neutral-800">{type}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-neutral-800">Sort By</label>
+                <select
+                  value={filters.sortBy}
+                  onChange={(e) => setFilters(prev => ({ ...prev, sortBy: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-                />
+                >
+                  <option value="">Sort By</option>
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                  <option value="title_asc">Title: A to Z</option>
+                  <option value="title_desc">Title: Z to A</option>
+                  <option value="created_newest">Newest First</option>
+                  <option value="created_oldest">Oldest First</option>
+                </select>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-neutral-800">Updated Date</label>
+            {/* Second row: Tags and Dates */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
-                <input
-                  type="date"
-                  placeholder="Updated After"
-                  value={filters.updatedAfter}
-                  onChange={(e) => setFilters(prev => ({ ...prev, updatedAfter: e.target.value }))}
+                <label className="block text-sm font-medium text-neutral-800">Tags</label>
+                <select
+                  multiple
+                  value={filters.tags}
+                  onChange={(e) => setFilters(prev => ({
+                    ...prev,
+                    tags: Array.from(e.target.selectedOptions, option => option.value)
+                  }))}
                   className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-                />
-                <input
-                  type="date"
-                  placeholder="Updated Before"
-                  value={filters.updatedBefore}
-                  onChange={(e) => setFilters(prev => ({ ...prev, updatedBefore: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-                />
+                >
+                  {allTags.map(tag => (
+                    <option key={tag} value={tag} className="text-neutral-800">{tag}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-neutral-600">Hold Ctrl/Cmd to select multiple tags</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-neutral-800">Created Date</label>
+                <div className="space-y-2">
+                  <input
+                    type="date"
+                    placeholder="Created After"
+                    value={filters.createdAfter}
+                    onChange={(e) => setFilters(prev => ({ ...prev, createdAfter: e.target.value }))}
+                    className="w-full px-3 py-2 border rounded-lg text-neutral-800"
+                  />
+                  <input
+                    type="date"
+                    placeholder="Created Before"
+                    value={filters.createdBefore}
+                    onChange={(e) => setFilters(prev => ({ ...prev, createdBefore: e.target.value }))}
+                    className="w-full px-3 py-2 border rounded-lg text-neutral-800"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-neutral-800">Updated Date</label>
+                <div className="space-y-2">
+                  <input
+                    type="date"
+                    placeholder="Updated After"
+                    value={filters.updatedAfter}
+                    onChange={(e) => setFilters(prev => ({ ...prev, updatedAfter: e.target.value }))}
+                    className="w-full px-3 py-2 border rounded-lg text-neutral-800"
+                  />
+                  <input
+                    type="date"
+                    placeholder="Updated Before"
+                    value={filters.updatedBefore}
+                    onChange={(e) => setFilters(prev => ({ ...prev, updatedBefore: e.target.value }))}
+                    className="w-full px-3 py-2 border rounded-lg text-neutral-800"
+                  />
+                </div>
               </div>
             </div>
-          </>
-        )}
+          </div>
+        </div>
       </div>
     </div>
   );

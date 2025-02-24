@@ -8,9 +8,9 @@ import { getAllCollections, getAllProducts } from '../lib/shopify';
 interface Collection {
   id: string;
   title: string;
+  isShopifyCollection?: boolean;
 }
 
-// Vendor icons - you can replace these with your actual vendor icons
 const vendorIcons = {
   'Nike': (
     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -27,7 +27,6 @@ const vendorIcons = {
       <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
     </svg>
   ),
-  // Add more vendor icons as needed
 };
 
 interface CreateProductModalProps {
@@ -50,7 +49,6 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
     price: '',
     compareAtPrice: '',
     sku: '',
-    barcode: '',
     vendor: '',
     collections: [] as string[],
     tags: [] as string[],
@@ -59,13 +57,15 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
     inventory: '',
     images: [] as File[],
     status: 'active',
-    productType: ''
+    productType: '',
+    stockQuantity: '0'
   });
 
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
 
-  // Fetch collections and tags when modal opens
+  const [showSuccess, setShowSuccess] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       fetchCollections();
@@ -76,20 +76,15 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
 
   const fetchCollections = async () => {
     try {
-      // Fetch Shopify collections
-      const shopifyResponse = await getAllCollections(null);
-      const shopifyCollections = shopifyResponse?.collections?.edges.map(edge => ({
-        id: edge.node.id,
-        title: edge.node.title
-      })) || [];
+      const response = await fetch('/api/collections');
+      const data = await response.json();
+      const mongoCollections = data.collections || [];
 
-      // Fetch MongoDB collections
-      const mongoResponse = await fetch('/api/collections');
-      const mongoData = await mongoResponse.json();
-      const mongoCollections = mongoData.collections || [];
-
-      // Combine both sets of collections
-      setCollections([...shopifyCollections, ...mongoCollections]);
+      setCollections(mongoCollections.map(collection => ({
+        id: collection.id,
+        title: collection.title,
+        isShopifyCollection: collection.isShopifyCollection
+      })));
     } catch (error) {
       console.error('Error fetching collections:', error);
     }
@@ -97,47 +92,52 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
 
   const fetchAllTags = async () => {
     try {
-      // Fetch tags from MongoDB
       const mongoResponse = await fetch('/api/products');
       const mongoData = await mongoResponse.json();
       const mongoTags = mongoData.tags || [];
 
-      // Fetch tags from Shopify
       const shopifyData = await getAllProducts(null);
-      const shopifyTags = shopifyData?.products?.edges
-        .flatMap(edge => edge.node.tags || [])
-        .filter(Boolean);
+      let shopifyTags = [];
+      
+      if (shopifyData && shopifyData.products && shopifyData.products.edges) {
+        shopifyTags = shopifyData.products.edges
+          .flatMap(edge => edge.node.tags || [])
+          .filter(Boolean);
+      }
 
-      // Combine and deduplicate tags
-      const allTags = [...new Set([...mongoTags, ...shopifyTags])];
+      const allTags = [...new Set([...mongoTags, ...(Array.isArray(shopifyTags) ? shopifyTags : [])])];
       setAvailableTags(allTags);
     } catch (error) {
       console.error('Error fetching tags:', error);
+      setAvailableTags([]);
     }
   };
 
   const fetchVendors = async () => {
     try {
-      // Fetch vendors from MongoDB
       const mongoResponse = await fetch('/api/products');
       const mongoData = await mongoResponse.json();
+      const mongoVendors = mongoData.vendors || [];
       
-      // Fetch vendors from Shopify
       const shopifyData = await getAllProducts(null);
-      const shopifyVendors = shopifyData?.products?.edges
-        .map(edge => edge.node.vendor)
-        .filter(Boolean);
+      let shopifyVendors = [];
+      
+      if (shopifyData && shopifyData.products && shopifyData.products.edges) {
+        shopifyVendors = shopifyData.products.edges
+          .map(edge => edge.node.vendor)
+          .filter(Boolean);
+      }
 
-      // Combine and deduplicate vendors
       const allVendors = [...new Set([
-        ...(mongoData.vendors || []),
-        ...(shopifyVendors || [])
+        ...mongoVendors,
+        ...(Array.isArray(shopifyVendors) ? shopifyVendors : [])
       ])];
       
       console.log('Combined vendors:', allVendors);
       setVendors(allVendors);
     } catch (error) {
       console.error('Error fetching vendors:', error);
+      setVendors([]);
     }
   };
 
@@ -147,7 +147,6 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
         ...prev,
         tags: [...prev.tags, newTag.trim()]
       }));
-      // Add to available tags if it's new
       if (!availableTags.includes(newTag.trim())) {
         setAvailableTags(prev => [...prev, newTag.trim()]);
       }
@@ -164,13 +163,8 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
     }));
   };
 
-  // Add collection creation handler
-  const handleAddCollection = async () => {
+  const handleCreateCollection = async () => {
     try {
-      if (!newCollection.trim()) {
-        throw new Error('Collection name cannot be empty');
-      }
-
       const response = await fetch('/api/collections', {
         method: 'POST',
         headers: {
@@ -179,27 +173,27 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
         body: JSON.stringify({ title: newCollection }),
       });
 
+      if (!response.ok) throw new Error('Failed to create collection');
+
       const data = await response.json();
-      console.log('Collection creation response:', { status: response.status, data });
+      
+      setCollections(prev => [...prev, {
+        id: data.collectionId,
+        title: data.title,
+        isShopifyCollection: data.isShopifyCollection
+      }]);
 
-      if (!response.ok) {
-        throw new Error(data.message || data.error || 'Failed to create collection');
-      }
-
-      if (!data.collectionId || !data.title) {
-        throw new Error('Invalid response format from server');
-      }
-
-      setCollections(prev => [...prev, { id: data.collectionId, title: data.title }]);
       setProductData(prev => ({
         ...prev,
         collections: [...prev.collections, data.collectionId]
       }));
-      setIsCreatingCollection(false);
+
       setNewCollection('');
+      setIsCreatingCollection(false);
+
+      window.dispatchEvent(new CustomEvent('collectionsUpdated'));
     } catch (error) {
-      console.error('Detailed error creating collection:', error);
-      alert(`Failed to create collection: ${error.message}`);
+      console.error('Error creating collection:', error);
     }
   };
 
@@ -210,7 +204,6 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
       images: [...prev.images, ...files]
     }));
 
-    // Create preview URLs
     const newPreviewUrls = files.map(file => URL.createObjectURL(file));
     setPreviewImages(prev => [...prev, ...newPreviewUrls]);
   };
@@ -230,6 +223,8 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
         formData.append(key, value.toString());
       }
     });
+    formData.append('stockQuantity', productData.stockQuantity);
+    formData.append('availableForSale', (parseInt(productData.stockQuantity) > 0).toString());
 
     try {
       const response = await fetch('/api/products', {
@@ -243,11 +238,15 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
         throw new Error(data.error || 'Failed to create product');
       }
 
-      onClose();
-      // Force a hard refresh of the page
-      router.refresh();
-      // Redirect to the same page to ensure fresh data
-      window.location.href = window.location.href;
+      setShowSuccess(true);
+      
+      setTimeout(() => {
+        setShowSuccess(false);
+        onClose();
+        router.refresh();
+        window.location.href = window.location.href;
+      }, 2000);
+
     } catch (error) {
       console.error('Error creating product:', error);
       alert(error.message || 'Failed to create product. Please try again.');
@@ -257,10 +256,18 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-start overflow-y-auto p-4">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-[1200px]">
+    <div className={`fixed inset-0 z-50 flex justify-center items-center overflow-y-auto p-4
+      transition-all duration-300 backdrop-blur-sm
+      ${isOpen ? 'opacity-100 bg-black/25' : 'opacity-0 pointer-events-none bg-black/0'}`}
+    >
+      <div className={`bg-white rounded-lg shadow-xl p-6 w-full max-w-[900px] my-auto lg:my-0
+        transform transition-all duration-300 ease-out
+        ${isOpen ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-4 opacity-0 scale-95'}`}
+      >
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-neutral-800">Create New Product</h2>
+          <h2 className="text-2xl font-bold text-neutral-800">
+            Create New Product
+          </h2>
           <button onClick={onClose} className="text-neutral-500 hover:text-neutral-700">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -269,281 +276,353 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left Column */}
-            <div className="space-y-6">
-              {/* Basic Information */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-800 mb-1">Title</label>
-                  <input
-                    type="text"
-                    required
-                    value={productData.title}
-                    onChange={e => setProductData(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-neutral-800 mb-1">Description</label>
-                  <textarea
-                    rows={4}
-                    value={productData.description}
-                    onChange={e => setProductData(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-                  />
-                </div>
-
-                {/* Pricing */}
-                <div className="grid grid-cols-2 gap-4">
+        {showSuccess ? (
+          <div className="flex flex-col items-center justify-center py-12 animate-fade-in">
+            <div className="relative">
+              <svg
+                className="w-24 h-24 text-green-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  className="animate-check"
+                />
+              </svg>
+            </div>
+            <p className="mt-4 text-xl font-medium text-neutral-800">
+              Product Created Successfully!
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left Column */}
+              <div className="space-y-6">
+                {/* Basic Information */}
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-neutral-800 mb-1">Price</label>
+                    <label className="block text-sm font-medium text-neutral-800 mb-1">Title</label>
                     <input
-                      type="number"
-                      step="0.01"
+                      type="text"
                       required
-                      value={productData.price}
-                      onChange={e => setProductData(prev => ({ ...prev, price: e.target.value }))}
+                      value={productData.title}
+                      onChange={e => setProductData(prev => ({ ...prev, title: e.target.value }))}
                       className="w-full px-3 py-2 border rounded-lg text-neutral-800"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-800 mb-1">Compare at Price</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={productData.compareAtPrice}
-                      onChange={e => setProductData(prev => ({ ...prev, compareAtPrice: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-                    />
-                  </div>
-                </div>
 
-                {/* Inventory */}
-                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-neutral-800 mb-1">SKU</label>
-                    <input
-                      type="text"
-                      value={productData.sku}
-                      onChange={e => setProductData(prev => ({ ...prev, sku: e.target.value }))}
+                    <label className="block text-sm font-medium text-neutral-800 mb-1">Description</label>
+                    <textarea
+                      rows={4}
+                      value={productData.description}
+                      onChange={e => setProductData(prev => ({ ...prev, description: e.target.value }))}
                       className="w-full px-3 py-2 border rounded-lg text-neutral-800"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-800 mb-1">Barcode</label>
-                    <input
-                      type="text"
-                      value={productData.barcode}
-                      onChange={e => setProductData(prev => ({ ...prev, barcode: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-                    />
-                  </div>
-                </div>
 
-                {/* Images */}
-                <div>
-                  <label className="block text-sm font-medium text-neutral-800 mb-1">Images</label>
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-                  />
-                  {previewImages.length > 0 && (
-                    <div className="grid grid-cols-4 gap-2 mt-2">
-                      {previewImages.map((url, index) => (
-                        <div key={index} className="relative aspect-square">
-                          <Image
-                            src={url}
-                            alt={`Preview ${index + 1}`}
-                            fill
-                            className="object-cover rounded-lg"
-                          />
-                        </div>
-                      ))}
+                  {/* Pricing */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-800 mb-1">Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={productData.price}
+                        onChange={e => setProductData(prev => ({ ...prev, price: e.target.value }))}
+                        className="w-full px-3 py-2 border rounded-lg text-neutral-800"
+                      />
                     </div>
-                  )}
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-800 mb-1">Compare at Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={productData.compareAtPrice}
+                        onChange={e => setProductData(prev => ({ ...prev, compareAtPrice: e.target.value }))}
+                        className="w-full px-3 py-2 border rounded-lg text-neutral-800"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Inventory */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-800 mb-1">SKU</label>
+                      <input
+                        type="text"
+                        value={productData.sku}
+                        onChange={e => setProductData(prev => ({ ...prev, sku: e.target.value }))}
+                        className="w-full px-3 py-2 border rounded-lg text-neutral-800"
+                        placeholder="Stock Keeping Unit"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-800 mb-1">
+                        Stock Quantity
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={productData.stockQuantity}
+                        onChange={e => setProductData(prev => ({ 
+                          ...prev, 
+                          stockQuantity: e.target.value 
+                        }))}
+                        className="w-full px-3 py-2 border rounded-lg text-neutral-800"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Images */}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-800 mb-1">Images</label>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="w-full px-3 py-2 border rounded-lg text-neutral-800"
+                    />
+                    {previewImages.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2 mt-2">
+                        {previewImages.map((url, index) => (
+                          <div key={index} className="relative aspect-square">
+                            <Image
+                              src={url}
+                              alt={`Preview ${index + 1}`}
+                              fill
+                              className="object-cover rounded-lg"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Right Column */}
-            <div className="space-y-6">
-              {/* Collections */}
-              <div className="space-y-4">
-                <label className="block text-sm font-medium text-neutral-800 mb-1">Collections</label>
-                
-                {/* Collection Selection */}
-                <div className="space-y-2">
+              {/* Right Column */}
+              <div className="space-y-6">
+                {/* Collections */}
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-neutral-800 mb-1">Collections</label>
+                  
+                  {/* Collection Selection */}
+                  <div className="space-y-2">
+                    <select
+                      multiple
+                      value={productData.collections}
+                      onChange={e => setProductData(prev => ({
+                        ...prev,
+                        collections: Array.from(e.target.selectedOptions, option => option.value)
+                      }))}
+                      className="w-full px-3 py-2 border rounded-lg text-neutral-800"
+                      size={5}
+                    >
+                      {collections.map(collection => (
+                        <option 
+                          key={collection.id} 
+                          value={collection.id}
+                          className="text-neutral-800"
+                        >
+                          {collection.title} {collection.isShopifyCollection ? '(Shopify)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Hold Ctrl/Cmd to select multiple collections
+                    </p>
+
+                    
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingCollection(true)}
+                      className="w-full px-4 py-2 text-[#fe6900] border border-[#fe6900] rounded-md hover:bg-[#ffe4d3]"
+                    >
+                      Add New Collection
+                    </button>
+
+                    {isCreatingCollection && (
+                      <div className="mt-2 space-y-2">
+                        <input
+                          type="text"
+                          value={newCollection}
+                          onChange={e => setNewCollection(e.target.value)}
+                          placeholder="Collection name"
+                          className="w-full px-3 py-2 border rounded-lg text-neutral-800"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={handleCreateCollection}
+                            className="flex-1 px-4 py-2 bg-[#fe6900] text-white rounded-md hover:bg-[#e55f00]"
+                          >
+                            Create Collection
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsCreatingCollection(false);
+                              setNewCollection('');
+                            }}
+                            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Vendor Selection */}
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-neutral-800 mb-1">Vendor</label>
                   <select
-                    multiple
-                    value={productData.collections}
-                    onChange={e => setProductData(prev => ({
-                      ...prev,
-                      collections: Array.from(e.target.selectedOptions, option => option.value)
-                    }))}
+                    value={productData.vendor}
+                    onChange={(e) => setProductData(prev => ({ ...prev, vendor: e.target.value }))}
                     className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-                    size={5}
+                    required
                   >
-                    {collections.map(collection => (
-                      <option key={collection.id} value={collection.id}>
-                        {collection.title}
+                    <option value="">Select a vendor</option>
+                    {vendors.map((vendor) => (
+                      <option key={vendor} value={vendor}>
+                        {vendor}
                       </option>
                     ))}
                   </select>
+                </div>
 
-                  {/* Add New Collection Button */}
-                  <button
-                    type="button"
-                    onClick={() => setIsCreatingCollection(true)}
-                    className="w-full px-4 py-2 text-[#fe6900] border border-[#fe6900] rounded-md hover:bg-[#ffe4d3]"
-                  >
-                    Add New Collection
-                  </button>
+                {/* Tags Section */}
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-gray-700">Tags</label>
+                  
+                  {/* Add new tag input */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-neutral-800"
+                      placeholder="Add a new tag"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddTag}
+                      className="px-4 py-2 bg-[#fe6900] text-white rounded-md hover:bg-[#e55f00]"
+                    >
+                      Add Tag
+                    </button>
+                  </div>
 
-                  {/* New Collection Input */}
-                  {isCreatingCollection && (
-                    <div className="mt-2 space-y-2">
-                      <input
-                        type="text"
-                        value={newCollection}
-                        onChange={e => setNewCollection(e.target.value)}
-                        placeholder="Collection name"
-                        className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-                      />
-                      <div className="flex gap-2">
+                  {/* Available Tags */}
+                  <div className="border rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Available Tags</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {availableTags.map((tag) => (
                         <button
+                          key={tag}
                           type="button"
-                          onClick={handleAddCollection}
-                          className="flex-1 px-4 py-2 bg-[#fe6900] text-white rounded-md hover:bg-[#e55f00]"
+                          onClick={() => handleTagClick(tag)}
+                          className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                            productData.tags.includes(tag)
+                              ? 'bg-[#fe6900] text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-[#ffe4d3]'
+                          }`}
                         >
-                          Create Collection
+                          {tag}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsCreatingCollection(false);
-                            setNewCollection('');
-                          }}
-                          className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                        >
-                          Cancel
-                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Selected Tags */}
+                  {productData.tags.length > 0 && (
+                    <div className="border rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Selected Tags</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {productData.tags.map((tag, index) => (
+                          <span
+                            key={index}
+                            className="bg-[#ffe4d3] text-[#fe6900] px-3 py-1 rounded-full text-sm flex items-center gap-2"
+                          >
+                            {tag}
+                            <button
+                              type="button"
+                              onClick={() => handleTagClick(tag)}
+                              className="text-[#fe6900] hover:text-[#e55f00]"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
                       </div>
                     </div>
                   )}
                 </div>
               </div>
-
-              {/* Vendor Selection */}
-              <div className="space-y-4">
-                <label className="block text-sm font-medium text-neutral-800 mb-1">Vendor</label>
-                <select
-                  value={productData.vendor}
-                  onChange={(e) => setProductData(prev => ({ ...prev, vendor: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg text-neutral-800"
-                  required
-                >
-                  <option value="">Select a vendor</option>
-                  {vendors.map((vendor) => (
-                    <option key={vendor} value={vendor}>
-                      {vendor}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Tags Section */}
-              <div className="space-y-4">
-                <label className="block text-sm font-medium text-gray-700">Tags</label>
-                
-                {/* Add new tag input */}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    className="flex-1 rounded-md border border-gray-300 px-3 py-2"
-                    placeholder="Add a new tag"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddTag}
-                    className="px-4 py-2 bg-[#fe6900] text-white rounded-md hover:bg-[#e55f00]"
-                  >
-                    Add Tag
-                  </button>
-                </div>
-
-                {/* Available Tags */}
-                <div className="border rounded-lg p-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Available Tags</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {availableTags.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => handleTagClick(tag)}
-                        className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                          productData.tags.includes(tag)
-                            ? 'bg-[#fe6900] text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-[#ffe4d3]'
-                        }`}
-                      >
-                        {tag}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Selected Tags */}
-                {productData.tags.length > 0 && (
-                  <div className="border rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Selected Tags</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {productData.tags.map((tag, index) => (
-                        <span
-                          key={index}
-                          className="bg-[#ffe4d3] text-[#fe6900] px-3 py-1 rounded-full text-sm flex items-center gap-2"
-                        >
-                          {tag}
-                          <button
-                            type="button"
-                            onClick={() => handleTagClick(tag)}
-                            className="text-[#fe6900] hover:text-[#e55f00]"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
-          </div>
 
-          {/* Submit Buttons - Full Width */}
-          <div className="flex justify-end gap-4 pt-4 border-t">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-[#fe6900] text-white rounded-md hover:bg-[#e55f00]"
-            >
-              Create Product
-            </button>
-          </div>
-        </form>
+            {/* Submit Buttons - Full Width */}
+            <div className="flex justify-end gap-4 mt-6">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors text-neutral-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-[#fe6900] text-white rounded-md hover:bg-[#e55f00] transition-colors"
+              >
+                Create New Product
+              </button>
+            </div>
+          </form>
+        )}
+        
+        <style jsx global>{`
+          @keyframes check {
+            0% {
+              stroke-dasharray: 100;
+              stroke-dashoffset: 100;
+            }
+            100% {
+              stroke-dasharray: 100;
+              stroke-dashoffset: 0;
+            }
+          }
+          
+          .animate-check {
+            animation: check 0.8s ease-in-out forwards;
+          }
+          
+          .animate-fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+          }
+          
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: scale(0.9);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1);
+            }
+          }
+        `}</style>
       </div>
     </div>
   );

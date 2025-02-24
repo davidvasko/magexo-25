@@ -9,6 +9,10 @@ interface ProductImage {
       amount: string;
       currencyCode: string;
     };
+    compareAtPrice?: {
+      amount: string;
+      currencyCode: string;
+    };
     sku: string;
     availableForSale: boolean;
   }

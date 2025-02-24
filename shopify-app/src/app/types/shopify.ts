@@ -7,7 +7,9 @@ export interface ProductVariant {
   id: string;
   title: string;
   price: Price;
+  compareAtPrice?: Price;
   sku: string;
+  stockQuantity: number;
   availableForSale: boolean;
 }
 

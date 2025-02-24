@@ -31,6 +31,10 @@ describe('MongoDB Connection', () => {
     jest.clearAllMocks()
   })
 
+  beforeAll(() => {
+    process.env.NODE_ENV = 'test' as string
+  })
+
   it('creates a client instance', async () => {
     const { MongoClient } = require('mongodb')
     const { default: clientPromise } = await import('@/app/lib/mongodb')

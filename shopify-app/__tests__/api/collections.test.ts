@@ -1,11 +1,9 @@
-// Set environment variables before any imports
 process.env.MONGODB_URI = 'mongodb://localhost:27017'
 process.env.NODE_ENV = 'test'
 
 import { GET } from '@/app/api/collections/route'
 import { NextResponse } from 'next/server'
 
-// Mock NextResponse
 jest.mock('next/server', () => ({
   NextResponse: {
     json: jest.fn().mockImplementation((data, init) => ({
@@ -15,14 +13,15 @@ jest.mock('next/server', () => ({
   }
 }))
 
-// Mock MongoDB client
 const mockCollection = {
-  find: jest.fn().mockReturnValue({
+  aggregate: jest.fn().mockReturnValue({
     toArray: jest.fn().mockResolvedValue([
       {
         _id: '507f1f77bcf86cd799439011',
+        id: '1',
         title: 'Test Collection',
-        description: 'Test Description'
+        description: 'Test Description',
+        source: 'mongodb'
       }
     ])
   })
@@ -40,26 +39,32 @@ jest.mock('@/app/lib/mongodb', () => ({
 describe('Collections API', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    // Suppress console.error
+    jest.spyOn(console, 'error').mockImplementation(() => {})
   })
 
-  it('returns formatted collections', async () => {
-    const response = await GET(new Request('http://localhost:3000/api/collections'))
-    const data = await response.json()
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
 
+  it('returns collections successfully', async () => {
+    const response = await GET()
+    const data = await response.json()
+    
     expect(data.collections).toBeDefined()
+    expect(data.collections.length).toBeGreaterThan(0)
     expect(data.collections[0].title).toBe('Test Collection')
-    expect(data.collections[0].id).toBe('507f1f77bcf86cd799439011')
   })
 
   it('handles database errors', async () => {
-    mockCollection.find.mockImplementationOnce(() => {
-      throw new Error('Database error')
+    mockCollection.aggregate.mockReturnValueOnce({
+      toArray: jest.fn().mockRejectedValueOnce(new Error('Database error'))
     })
 
-    const response = await GET(new Request('http://localhost:3000/api/collections'))
+    const response = await GET()
+    const data = await response.json()
     
     expect(response.status).toBe(500)
-    const data = await response.json()
     expect(data.error).toBe('Failed to fetch collections')
   })
 }) 

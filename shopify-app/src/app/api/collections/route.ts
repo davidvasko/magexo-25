@@ -1,18 +1,36 @@
 import { NextResponse } from 'next/server';
 import clientPromise from '../../lib/mongodb';
-import { ObjectId } from 'mongodb';
 
 export async function GET() {
   try {
     const client = await clientPromise;
     const db = client.db("shopify-app");
-    const collections = await db.collection('collections').find({}).toArray();
     
-    // Transform MongoDB _id to string id for consistency
+    const collections = await db.collection('collections')
+      .aggregate([
+        {
+          $group: {
+            _id: "$id", 
+            doc: { $first: "$$ROOT" } 
+          }
+        },
+        {
+          $replaceRoot: { newRoot: "$doc" } 
+        },
+        {
+          $sort: { title: 1 }
+        }
+      ])
+      .toArray();
+    
+   
     const formattedCollections = collections.map(collection => ({
-      id: collection._id.toString(),
+      id: collection.id || collection._id.toString(),
       title: collection.title,
-      description: collection.description || ''
+      description: collection.description || '',
+      isShopifyCollection: collection.isShopifyCollection || false,
+      source: collection.source || 'mongodb',
+      handle: collection.handle || ''
     }));
     
     return NextResponse.json({ collections: formattedCollections });

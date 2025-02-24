@@ -4,10 +4,6 @@ import { setContext } from '@apollo/client/link/context';
 const domain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN!;
 const storefrontAccessToken = process.env.NEXT_PUBLIC_SHOPIFY_STOREFRONT_ACCESS_TOKEN!;
 
-console.log('Environment check:', {
-  domain,
-  hasToken: !!storefrontAccessToken
-});
 
 const httpLink = createHttpLink({
   uri: `https://${domain}/api/2024-01/graphql.json`,
@@ -38,8 +34,8 @@ export const shopifyClient = new ApolloClient({
   },
 });
 
-export const ALL_PRODUCTS_QUERY = gql`
-  query GetAllProducts($cursor: String) {
+export const GET_ALL_PRODUCTS = gql`
+  query GetProducts($cursor: String) {
     products(first: 250, after: $cursor) {
       edges {
         node {
@@ -50,7 +46,7 @@ export const ALL_PRODUCTS_QUERY = gql`
           productType
           vendor
           tags
-          collections(first: 10) {
+          collections(first: 250) {
             edges {
               node {
                 id
@@ -59,7 +55,7 @@ export const ALL_PRODUCTS_QUERY = gql`
               }
             }
           }
-          variants(first: 1) {
+          variants(first: 250) {
             edges {
               node {
                 id
@@ -68,11 +64,16 @@ export const ALL_PRODUCTS_QUERY = gql`
                   amount
                   currencyCode
                 }
+                compareAtPrice {
+                  amount
+                  currencyCode
+                }
+                sku
                 availableForSale
               }
             }
           }
-          images(first: 2) {
+          images(first: 250) {
             edges {
               node {
                 url
@@ -80,13 +81,11 @@ export const ALL_PRODUCTS_QUERY = gql`
               }
             }
           }
-          createdAt
-          updatedAt
         }
-        cursor
       }
       pageInfo {
         hasNextPage
+        endCursor
       }
     }
   }
@@ -133,7 +132,7 @@ export const ALL_PAGES_QUERY = gql`
 `;
 
 export const GET_PRODUCT_BY_HANDLE = gql`
-  query GetProductByHandle($handle: String!) {
+  query getProductByHandle($handle: String!) {
     product(handle: $handle) {
       id
       title
@@ -142,20 +141,8 @@ export const GET_PRODUCT_BY_HANDLE = gql`
       productType
       vendor
       tags
-      variants(first: 250) {
-        edges {
-          node {
-            id
-            title
-            price {
-              amount
-              currencyCode
-            }
-            sku
-            availableForSale
-          }
-        }
-      }
+      createdAt
+      updatedAt
       images(first: 10) {
         edges {
           node {
@@ -164,8 +151,32 @@ export const GET_PRODUCT_BY_HANDLE = gql`
           }
         }
       }
-      createdAt
-      updatedAt
+      variants(first: 250) {
+        edges {
+          node {
+            id
+            title
+            sku
+            price {
+              amount
+              currencyCode
+            }
+            compareAtPrice {
+              amount
+              currencyCode
+            }
+            availableForSale
+          }
+        }
+      }
+      collections(first: 10) {
+        edges {
+          node {
+            id
+            title
+          }
+        }
+      }
     }
   }
 `;
@@ -182,10 +193,73 @@ export const GET_ALL_VENDORS = gql`
   }
 `;
 
+export const GET_PRODUCTS_IN_COLLECTION = gql`
+  query GetProductsInCollection($id: ID!) {
+    collection(id: $id) {
+      products(first: 250) {
+        edges {
+          node {
+            id
+            title
+            handle
+            description
+            productType
+            vendor
+            tags
+            variants(first: 1) {
+              edges {
+                node {
+                  id
+                  title
+                  price {
+                    amount
+                    currencyCode
+                  }
+                  compareAtPrice {
+                    amount
+                    currencyCode
+                  }
+                  sku
+                  availableForSale
+                }
+              }
+            }
+            images(first: 2) {
+              edges {
+                node {
+                  url
+                  altText
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const DEBUG_PRODUCT_VARIANTS = gql`
+  query DebugProductVariants($handle: String!) {
+    product(handle: $handle) {
+      id
+      title
+      variants(first: 250) {
+        edges {
+          node {
+            id
+            title
+          }
+        }
+      }
+    }
+  }
+`;
+
 export async function getAllProducts(cursor?: string) {
   try {
     const { data } = await shopifyClient.query({
-      query: ALL_PRODUCTS_QUERY,
+      query: GET_ALL_PRODUCTS,
       variables: { cursor },
       fetchPolicy: 'no-cache'
     });
@@ -245,7 +319,7 @@ export async function getProduct(handle: string) {
 export async function getProducts() {
   try {
     const { data } = await shopifyClient.query({
-      query: ALL_PRODUCTS_QUERY,
+      query: GET_ALL_PRODUCTS,
       variables: {},
       fetchPolicy: 'no-cache'
     });
@@ -272,5 +346,39 @@ export async function getAllVendors() {
   } catch (error) {
     console.error('Error fetching vendors:', error);
     return [];
+  }
+}
+
+export async function getProductsInCollection(collectionId: string) {
+  try {
+    const { data } = await shopifyClient.query({
+      query: GET_PRODUCTS_IN_COLLECTION,
+      variables: { id: collectionId },
+      fetchPolicy: 'no-cache'
+    });
+
+    return data;
+  } catch (error) {
+    console.error('Error in getProductsInCollection:', error);
+    throw error;
+  }
+}
+
+export async function debugProductVariants(handle: string) {
+  try {
+    const { data } = await shopifyClient.query({
+      query: DEBUG_PRODUCT_VARIANTS,
+      variables: { handle },
+      fetchPolicy: 'no-cache'
+    });
+    console.log('Debug - All variants for product:', {
+      productTitle: data.product.title,
+      variantsCount: data.product.variants.edges.length,
+      variants: data.product.variants.edges
+    });
+    return data;
+  } catch (error) {
+    console.error('Error in debugProductVariants:', error);
+    throw error;
   }
 }
