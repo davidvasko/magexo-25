@@ -208,15 +208,29 @@ export async function POST(request: Request) {
         } : null
       };
 
-      // Update the product with the new variant
+      // Initialize variants if it doesn't exist
+      if (!product.variants) {
+        await db.collection('products').updateOne(
+          { _id: new ObjectId(parentProductId) },
+          { 
+            $set: { 
+              variants: { 
+                edges: [] 
+              } 
+            } 
+          }
+        );
+      }
+
+      // Update the product with the new variant using $push with proper typing
       const result = await db.collection('products').updateOne(
         { _id: new ObjectId(parentProductId) },
-        {
-          $push: {
-            'variants.edges': {
-              node: newVariant
-            }
-          }
+        { 
+          $push: { 
+            'variants.edges': { 
+              node: newVariant 
+            } 
+          } as any // Type assertion needed for MongoDB operator
         }
       );
 
