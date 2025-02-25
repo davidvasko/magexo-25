@@ -105,10 +105,10 @@ export async function POST(request: Request) {
         { id: parentProductId },
         { 
           $push: { 
-            'variants.edges': { 
+            "variants.edges": { 
               node: variant 
             } 
-          },
+          } as any,
           $set: {
             updatedAt: new Date().toISOString()
           }
@@ -231,7 +231,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error in POST products:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to process request: ' + error.message },
+      { error: error instanceof Error ? error.message : 'Failed to process product' },
       { status: 500 }
     );
   }
