@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { getAllProducts } from '../lib/shopify';
 import Pagination from './Pagination';
 import ProductCard from './ProductCard';
+import { Edge } from '../types/shopify';
 
 export default function AllProducts() {
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState<Edge<any>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -55,7 +56,7 @@ export default function AllProducts() {
   return (
     <div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map((edge: any) => (
+        {products.map((edge) => (
           <ProductCard key={edge.node.id} product={edge.node} />
         ))}
       </div>
