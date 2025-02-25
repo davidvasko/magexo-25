@@ -80,7 +80,7 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
       const data = await response.json();
       const mongoCollections = data.collections || [];
 
-      setCollections(mongoCollections.map(collection => ({
+      setCollections(mongoCollections.map((collection: any) => ({
         id: collection.id,
         title: collection.title,
         isShopifyCollection: collection.isShopifyCollection
@@ -101,7 +101,7 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
       
       if (shopifyData && shopifyData.products && shopifyData.products.edges) {
         shopifyTags = shopifyData.products.edges
-          .flatMap(edge => edge.node.tags || [])
+          .flatMap((edge: any) => edge.node.tags || [])
           .filter(Boolean);
       }
 
@@ -124,7 +124,7 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
       
       if (shopifyData && shopifyData.products && shopifyData.products.edges) {
         shopifyVendors = shopifyData.products.edges
-          .map(edge => edge.node.vendor)
+          .map((edge: any) => edge.node.vendor)
           .filter(Boolean);
       }
 
@@ -211,7 +211,7 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
     const formData = new FormData();
     Object.entries(productData).forEach(([key, value]) => {
       if (key === 'images') {
-        value.forEach((image: File) => {
+        (value as File[]).forEach((image: File) => {
           formData.append('images', image);
         });
       } else if (key === 'collections' || key === 'tags') {
@@ -246,7 +246,7 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
 
     } catch (error) {
       console.error('Error creating product:', error);
-      alert(error.message || 'Failed to create product. Please try again.');
+      alert((error as Error).message || 'Failed to create product. Please try again.');
     }
   };
 
