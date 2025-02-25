@@ -150,7 +150,7 @@ export async function POST(request: Request) {
       let imageEdges: ImageEdge[] = [];
 
       if (uploadedFiles.length > 0) {
-        imageEdges = await Promise.all(uploadedFiles.map(async (file: File) => {
+        const edgeResults = await Promise.all(uploadedFiles.map(async (file: File) => {
           try {
             const bytes = await file.arrayBuffer();
             const buffer = Buffer.from(bytes);
@@ -169,14 +169,14 @@ export async function POST(request: Request) {
                 url: `/uploads/${filename}`,
                 altText: title
               }
-            };
+            } as ImageEdge;
           } catch (imageError) {
             console.error('Error processing image:', imageError);
             return null;
           }
         }));
 
-        imageEdges = imageEdges.filter(Boolean) as ImageEdge[];
+        imageEdges = edgeResults.filter((edge): edge is ImageEdge => edge !== null);
       }
 
       const collections = JSON.parse(formData.get('collections') as string || '[]');
