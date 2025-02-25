@@ -29,12 +29,14 @@ const vendorIcons = {
   ),
 };
 
-interface CreateProductModalProps {
+export interface CreateProductModalProps {
   isOpen: boolean;
   onClose: () => void;
+  mode?: 'product' | 'variant';
+  productId?: string;
 }
 
-export default function CreateProductModal({ isOpen, onClose }: CreateProductModalProps) {
+export default function CreateProductModal({ isOpen, onClose, mode = 'product', productId }: CreateProductModalProps) {
   const router = useRouter();
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
   const [isCreatingTag, setIsCreatingTag] = useState(false);

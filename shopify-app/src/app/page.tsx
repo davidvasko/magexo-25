@@ -8,6 +8,58 @@ import { getAllProducts } from './lib/shopify';
 import { useSwipeable } from 'react-swipeable';
 import { useSearchParams, useRouter } from 'next/navigation';
 
+// Define the Product interface if not already imported
+interface Product {
+  id: string;
+  title: string;
+  handle: string;
+  description: string;
+  productType: string;
+  vendor: string;
+  tags: string[];
+  variants: {
+    edges: Array<{
+      node: {
+        id: string;
+        title: string;
+        price: {
+          amount: string;
+          currencyCode: string;
+        };
+        compareAtPrice?: {
+          amount: string;
+          currencyCode: string;
+        } | null;
+        sku: string;
+        availableForSale: boolean;
+        stockQuantity?: number;
+      };
+    }>;
+  };
+  images: {
+    edges: Array<{
+      node: {
+        url: string;
+        altText?: string;
+      };
+    }>;
+  };
+  collections?: {
+    edges: Array<{
+      node: {
+        id: string;
+        title: string;
+        handle?: string;
+      };
+    }>;
+  };
+}
+
+// Define the FilterState interface
+interface FilterState {
+  [key: string]: string | string[] | number | boolean | undefined;
+}
+
 const PRODUCTS_PER_ROW = 4;
 
 const ArrowLeft = () => (
@@ -65,8 +117,8 @@ export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  const [allProducts, setAllProducts] = useState([]);
-  const [filteredProducts, setFilteredProducts] = useState([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
     searchParams.get('category')
   );
@@ -140,16 +192,16 @@ export default function HomePage() {
         let filteredList;
         
         if (selectedCategory === 'unassigned') {
-          filteredList = allProductsList.filter(product => {
+          filteredList = allProductsList.filter((product: any) => {
             // Check if collections is undefined, null, empty object, or has empty edges array
             return !product.collections || 
                    !product.collections.edges || 
                    product.collections.edges.length === 0;
           });
         } else if (selectedCategory) {
-          filteredList = allProductsList.filter(product => {
+          filteredList = allProductsList.filter((product: any) => {
             const productCollections = product.collections?.edges || [];
-            return productCollections.some(edge => {
+            return productCollections.some((edge: any) => {
               const collectionId = edge.node.id;
               if (!collectionId) return false;
               
@@ -199,7 +251,7 @@ export default function HomePage() {
     const params = new URLSearchParams(window.location.search);
     
     Object.entries(filterState).forEach(([key, value]) => {
-      if (value && value.length > 0) {
+      if (value && typeof value === 'string' && value.length > 0) {
         if (Array.isArray(value)) {
           params.set(key, value.join(','));
         } else {
@@ -363,7 +415,7 @@ export default function HomePage() {
       
       <div className="mb-8">
         <ProductFilter 
-          products={allProducts}
+          products={allProducts as Product[]}
           onFilterChange={handleFilterChange}
         />
       </div>
