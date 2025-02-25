@@ -371,7 +371,7 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error('Error in PUT products:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to update product' },
+      { error: error instanceof Error ? error.message : 'Failed to update product' },
       { status: 500 }
     );
   }
