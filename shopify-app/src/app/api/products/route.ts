@@ -6,6 +6,14 @@ import path from 'path';
 import { getAllVendors } from '../../lib/shopify';
 import { ObjectId } from 'mongodb';
 
+// Define interfaces for type safety
+interface CollectionEdge {
+  node: {
+    id: string;
+    title?: string;
+  }
+}
+
 export async function GET() {
   try {
     const client = await clientPromise;
@@ -25,7 +33,7 @@ export async function GET() {
       if (product.collections) {
         if (product.collections.edges) {
           formattedCollections = {
-            edges: product.collections.edges.map(edge => ({
+            edges: product.collections.edges.map((edge: CollectionEdge) => ({
               node: {
                 id: edge.node.id,
                 title: collectionsMap.get(edge.node.id)?.title || edge.node.title || '',
