@@ -7,57 +7,17 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { getAllProducts } from './lib/shopify';
 import { useSwipeable } from 'react-swipeable';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { Product } from './types/shopify';
 
-// Define the Product interface if not already imported
-interface Product {
-  id: string;
-  title: string;
-  handle: string;
-  description: string;
-  productType: string;
-  vendor: string;
-  tags: string[];
-  variants: {
-    edges: Array<{
-      node: {
-        id: string;
-        title: string;
-        price: {
-          amount: string;
-          currencyCode: string;
-        };
-        compareAtPrice?: {
-          amount: string;
-          currencyCode: string;
-        } | null;
-        sku: string;
-        availableForSale: boolean;
-        stockQuantity?: number;
-      };
-    }>;
-  };
-  images: {
-    edges: Array<{
-      node: {
-        url: string;
-        altText?: string;
-      };
-    }>;
-  };
-  collections?: {
-    edges: Array<{
-      node: {
-        id: string;
-        title: string;
-        handle?: string;
-      };
-    }>;
-  };
-}
-
-// Define the FilterState interface
+// Define the FilterState interface to match the one in ProductFilter
 interface FilterState {
-  [key: string]: string | string[] | number | boolean | undefined;
+  search?: string;
+  minPrice?: string;
+  maxPrice?: string;
+  vendors?: string[];
+  productTypes?: string[];
+  tags?: string[];
+  inStock?: boolean;
 }
 
 const PRODUCTS_PER_ROW = 4;
@@ -165,10 +125,14 @@ export default function HomePage() {
     
     if (newFilters) {
       Object.entries(newFilters).forEach(([key, value]) => {
-        if (value && value.toString() !== currentParams.get(key)) {
-          newParams.set(key, value.toString());
-        } else if (currentParams.has(key)) {
-          newParams.set(key, currentParams.get(key)!);
+        if (value && typeof value !== 'undefined' && (typeof value !== 'string' || value.length > 0)) {
+          if (Array.isArray(value)) {
+            newParams.set(key, value.join(','));
+          } else {
+            newParams.set(key, value.toString());
+          }
+        } else {
+          newParams.delete(key);
         }
       });
     }
@@ -251,11 +215,23 @@ export default function HomePage() {
     const params = new URLSearchParams(window.location.search);
     
     Object.entries(filterState).forEach(([key, value]) => {
-      if (value && typeof value === 'string' && value.length > 0) {
+      if (value !== undefined && value !== null) {
         if (Array.isArray(value)) {
-          params.set(key, value.join(','));
-        } else {
+          if (value.length > 0) {
+            params.set(key, value.join(','));
+          } else {
+            params.delete(key);
+          }
+        } else if (typeof value === 'string') {
+          if (value.length > 0) {
+            params.set(key, value);
+          } else {
+            params.delete(key);
+          }
+        } else if (typeof value === 'boolean') {
           params.set(key, value.toString());
+        } else {
+          params.set(key, String(value));
         }
       } else {
         params.delete(key);
@@ -415,7 +391,7 @@ export default function HomePage() {
       
       <div className="mb-8">
         <ProductFilter 
-          products={allProducts as Product[]}
+          products={allProducts}
           onFilterChange={handleFilterChange}
         />
       </div>
