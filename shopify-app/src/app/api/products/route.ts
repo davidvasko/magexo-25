@@ -14,6 +14,13 @@ interface CollectionEdge {
   }
 }
 
+interface ImageEdge {
+  node: {
+    url: string;
+    altText: string;
+  }
+}
+
 export async function GET() {
   try {
     const client = await clientPromise;
@@ -140,7 +147,7 @@ export async function POST(request: Request) {
 
     try {
       const uploadedFiles = formData.getAll('images');
-      let imageEdges = [];
+      let imageEdges: ImageEdge[] = [];
 
       if (uploadedFiles.length > 0) {
         imageEdges = await Promise.all(uploadedFiles.map(async (file: File) => {
@@ -169,7 +176,7 @@ export async function POST(request: Request) {
           }
         }));
 
-        imageEdges = imageEdges.filter(Boolean);
+        imageEdges = imageEdges.filter(Boolean) as ImageEdge[];
       }
 
       const collections = JSON.parse(formData.get('collections') as string || '[]');
@@ -223,7 +230,7 @@ export async function POST(request: Request) {
     } catch (processError) {
       console.error('Error processing request:', processError);
       return NextResponse.json(
-        { success: false, error: 'Error processing request: ' + processError.message },
+        { success: false, error: 'Error processing request: ' + (processError instanceof Error ? processError.message : String(processError)) },
         { status: 500 }
       );
     }
