@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "builds": [
+    { 
+      "src": "shopify-app/package.json", 
+      "use": "@vercel/next" 
+    }
+  ],
+  "routes": [
+    { 
+      "src": "/(.*)", 
+      "dest": "shopify-app/$1" 
+    }
+  ]
+} 
