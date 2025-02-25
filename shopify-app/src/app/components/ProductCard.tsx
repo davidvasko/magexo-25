@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Product } from '../types/shopify';
 import { Swiper as SwiperType } from 'swiper';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -17,24 +17,62 @@ interface ProductCardProps {
 
 export default function ProductCard({ product }: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [currentProduct, setCurrentProduct] = useState(product);
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  const hasImages = product.images?.edges?.length > 0;
-  const firstImage = hasImages ? product.images.edges[0].node : null;
-  const secondImage = hasImages && product.images.edges.length > 1 ? product.images.edges[1].node : null;
-  const price = product.variants?.edges?.[0]?.node?.price?.amount || '0';
+  useEffect(() => {
+    const fetchLatestProductData = async () => {
+      try {
+        if (product.id) {
+          const timestamp = Date.now();
+          const response = await fetch(`/api/products?id=${product.id}&t=${timestamp}`, {
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.products && data.products.length > 0) {
+              setCurrentProduct(data.products[0]);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching latest product data:', error);
+      }
+    };
+    
+    fetchLatestProductData();
+    
+    const handleProductUpdated = () => {
+      fetchLatestProductData();
+    };
+    
+    window.addEventListener('productUpdated', handleProductUpdated);
+    
+    return () => {
+      window.removeEventListener('productUpdated', handleProductUpdated);
+    };
+  }, [product.id]);
+  
+  const hasImages = currentProduct.images?.edges?.length > 0;
+  const firstImage = hasImages ? currentProduct.images.edges[0].node : null;
+  const secondImage = hasImages && currentProduct.images.edges.length > 1 ? currentProduct.images.edges[1].node : null;
+  const price = currentProduct.variants?.edges?.[0]?.node?.price?.amount || '0';
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     
     const currentURL = `/?${searchParams.toString()}`;
     
-    router.push(`/product/${product.handle}?return=${encodeURIComponent(currentURL)}`);
+    router.push(`/product/${currentProduct.handle}?return=${encodeURIComponent(currentURL)}`);
   };
 
   const renderTags = () => {
-    if (!product.tags || product.tags.length === 0) {
+    if (!currentProduct.tags || currentProduct.tags.length === 0) {
       return (
         <span className="inline-block bg-red-50 text-red-400 px-2 py-1 rounded-full text-xs">
           No tags available
@@ -42,8 +80,8 @@ export default function ProductCard({ product }: ProductCardProps) {
       );
     }
 
-    const visibleTags = product.tags.slice(0, 3);
-    const remainingCount = product.tags.length - 3;
+    const visibleTags = currentProduct.tags.slice(0, 3);
+    const remainingCount = currentProduct.tags.length - 3;
 
     return (
       <>
@@ -66,7 +104,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   return (
     <Link 
-      href={`/product/${product.handle}?return=${encodeURIComponent(
+      href={`/product/${currentProduct.handle}?return=${encodeURIComponent(
         `/?${searchParams.toString()}`
       )}`}
       className="block cursor-pointer group"
@@ -81,7 +119,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             <>
               <Image
                 src={firstImage.url}
-                alt={firstImage.altText || product.title}
+                alt={firstImage.altText || currentProduct.title}
                 fill
                 priority
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -92,7 +130,7 @@ export default function ProductCard({ product }: ProductCardProps) {
               {secondImage?.url && (
                 <Image
                   src={secondImage.url}
-                  alt={secondImage.altText || product.title}
+                  alt={secondImage.altText || currentProduct.title}
                   fill
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   className={`object-contain object-center transition-all duration-300 group-hover:scale-110 ${
@@ -150,7 +188,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         <div className="p-4 flex flex-col flex-grow">
           <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-            {product.title}
+            {currentProduct.title}
           </h3>
           
           <div className="mt-[10px] space-y-2">
@@ -159,8 +197,8 @@ export default function ProductCard({ product }: ProductCardProps) {
                 {parseFloat(price).toLocaleString('cs-CZ')} Kč
               </p>
               
-              <p className={`text-sm ${product.variants?.edges?.[0]?.node?.availableForSale ? 'text-green-600' : 'text-red-600'}`}>
-                {product.variants?.edges?.[0]?.node?.availableForSale ? 'In Stock' : 'Out of Stock'}
+              <p className={`text-sm ${currentProduct.variants?.edges?.[0]?.node?.availableForSale ? 'text-green-600' : 'text-red-600'}`}>
+                {currentProduct.variants?.edges?.[0]?.node?.availableForSale ? 'In Stock' : 'Out of Stock'}
               </p>
             </div>
 

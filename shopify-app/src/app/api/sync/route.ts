@@ -98,98 +98,99 @@ export async function POST() {
 
     await cleanupDuplicates(db);
 
+    // Get existing products and collections from database
     const existingProducts = await db.collection('products').find({}).toArray();
     const existingCollections = await db.collection('collections').find({}).toArray();
     
+    // Create sets of existing IDs for quick lookup
     const existingProductIds = new Set(existingProducts.map(p => p.id));
     const existingCollectionIds = new Set(existingCollections.map(c => c.id));
 
+    // Fetch collections from Shopify
     const shopifyCollections: ShopifyCollectionConnection = await getAllCollections(undefined);
     
-    const collectionsToUpsert = shopifyCollections?.collections?.edges.map((edge: ShopifyEdge) => ({
-      id: edge.node.id,
-      title: edge.node.title,
-      handle: edge.node.handle,
-      description: edge.node.description || '',
-      isShopifyCollection: true,
-      source: 'shopify',
-      updatedAt: new Date().toISOString()
-    })) || [];
+    // Process collections that don't exist in the database
+    const collectionsToUpsert = shopifyCollections?.collections?.edges
+      .filter((edge: ShopifyEdge) => !existingCollectionIds.has(edge.node.id))
+      .map((edge: ShopifyEdge) => ({
+        id: edge.node.id,
+        title: edge.node.title,
+        handle: edge.node.handle,
+        description: edge.node.description || '',
+        isShopifyCollection: true,
+        source: 'shopify',
+        updatedAt: new Date().toISOString()
+      })) || [];
 
+    // Insert new collections only
     for (const collection of collectionsToUpsert) {
-      await db.collection('collections').updateOne(
-        { id: collection.id },
-        { 
-          $set: collection,
-          $setOnInsert: { createdAt: new Date().toISOString() }
-        },
-        { upsert: true }
-      );
+      await db.collection('collections').insertOne({
+        ...collection,
+        createdAt: new Date().toISOString()
+      });
     }
 
+    // Fetch products from Shopify
     const shopifyProducts: ShopifyProductConnection = await getAllProducts(undefined);
     
     console.log('Sync - Processing products:', {
       totalProducts: shopifyProducts?.products?.edges?.length
     });
 
-    const productsToUpsert = shopifyProducts?.products?.edges.map((edge: ShopifyProductEdge) => {
-      const product = edge.node;
-      
-      console.log(`Processing product ${product.title}:`, {
-        variantsCount: product.variants?.edges?.length,
-        variants: product.variants?.edges
-      });
+    // Process products that don't exist in the database
+    const productsToInsert = shopifyProducts?.products?.edges
+      .filter((edge: ShopifyProductEdge) => !existingProductIds.has(edge.node.id))
+      .map((edge: ShopifyProductEdge) => {
+        const product = edge.node;
+        
+        console.log(`Processing new product ${product.title}:`, {
+          variantsCount: product.variants?.edges?.length
+        });
 
-      const formattedCollections = {
-        edges: (product.collections?.edges || []).map((colEdge: ShopifyEdge) => ({
-          node: {
-            id: colEdge.node.id,
-            title: colEdge.node.title,
-            handle: colEdge.node.handle
-          }
-        }))
-      };
-
-      return {
-        id: product.id,
-        title: product.title,
-        handle: product.handle,
-        description: product.description || '',
-        productType: product.productType || '',
-        vendor: product.vendor || '',
-        tags: product.tags || [],
-        isShopifyProduct: true,
-        source: 'shopify',
-        collections: formattedCollections,
-        updatedAt: new Date().toISOString(),
-        variants: {
-          edges: product.variants.edges.map((variant: ShopifyProductVariantEdge) => ({
+        const formattedCollections = {
+          edges: (product.collections?.edges || []).map((colEdge: ShopifyEdge) => ({
             node: {
-              id: variant.node.id,
-              title: variant.node.title,
-              price: variant.node.price || { amount: '0', currencyCode: 'CZK' },
-              compareAtPrice: variant.node.compareAtPrice || { amount: '', currencyCode: 'CZK' },
-              sku: variant.node.sku || '',
-              availableForSale: variant.node.availableForSale || false,
-              stockQuantity: variant.node.availableForSale ? 1 : 0,
-              isShopifyVariant: true
+              id: colEdge.node.id,
+              title: colEdge.node.title,
+              handle: colEdge.node.handle
             }
           }))
-        },
-        images: product.images || { edges: [] }
-      };
-    }) || [];
+        };
 
-    for (const product of productsToUpsert) {
-      await db.collection('products').updateOne(
-        { id: product.id },
-        { 
-          $set: product,
-          $setOnInsert: { createdAt: new Date().toISOString() }
-        },
-        { upsert: true }
-      );
+        return {
+          id: product.id,
+          title: product.title,
+          handle: product.handle,
+          description: product.description || '',
+          productType: product.productType || '',
+          vendor: product.vendor || '',
+          tags: product.tags || [],
+          isShopifyProduct: true,
+          source: 'shopify',
+          collections: formattedCollections,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          variants: {
+            edges: product.variants.edges.map((variant: ShopifyProductVariantEdge) => ({
+              node: {
+                id: variant.node.id,
+                title: variant.node.title,
+                price: variant.node.price || { amount: '0', currencyCode: 'CZK' },
+                compareAtPrice: variant.node.compareAtPrice || { amount: '', currencyCode: 'CZK' },
+                sku: variant.node.sku || '',
+                availableForSale: variant.node.availableForSale || false,
+                stockQuantity: variant.node.availableForSale ? 1 : 0,
+                isShopifyVariant: true
+              }
+            }))
+          },
+          images: product.images || { edges: [] }
+        };
+      }) || [];
+
+    // Insert new products only
+    if (productsToInsert.length > 0) {
+      await db.collection('products').insertMany(productsToInsert);
     }
 
     await cleanupDuplicates(db);
@@ -197,7 +198,7 @@ export async function POST() {
     return NextResponse.json({ 
       success: true,
       collectionsProcessed: collectionsToUpsert.length,
-      productsProcessed: productsToUpsert.length
+      productsProcessed: productsToInsert.length
     });
   } catch (error) {
     console.error('Error syncing data:', error);

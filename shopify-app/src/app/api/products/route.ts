@@ -21,36 +21,113 @@ interface ImageEdge {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const client = await clientPromise;
     const db = client.db("shopify-app");
     
+    const url = new URL(request.url);
+    const productId = url.searchParams.get('id');
+    
+    // If a specific product ID is requested
+    if (productId) {
+      let query;
+      if (productId.toString().startsWith('gid://')) {
+        query = { id: productId };
+      } else {
+        try {
+          query = { _id: new ObjectId(productId) };
+        } catch {
+          query = { id: productId };
+        }
+      }
+      
+      const product = await db.collection('products').findOne(query);
+      
+      if (!product) {
+        return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+      }
+      
+      const formattedProduct = {
+        ...product,
+        _id: product._id.toString(),
+        collections: product.collections || { edges: [] },
+        images: product.images || { edges: [] },
+        variants: product.variants || {
+          edges: [{
+            node: {
+              id: `variant-${product._id}`,
+              title: 'Default Variant',
+              price: { amount: '0', currencyCode: 'CZK' },
+              sku: '',
+              availableForSale: true
+            }
+          }]
+        },
+        tags: product.tags || []
+      };
+      
+      return NextResponse.json({ products: [formattedProduct] });
+    }
+    
+    // Original code for fetching all products
     const collections = await db.collection('collections').find({}).toArray();
-    const collectionsMap = new Map(collections.map(c => [c.id, c]));
+    const collectionsMap = new Map();
+
+    collections.forEach((collection: any) => {
+      const id = collection.id || collection._id.toString();
+      collectionsMap.set(id, {
+        title: collection.title,
+        handle: collection.handle || ''
+      });
+    });
     
     const products = await db.collection('products').find({}).toArray();
     const allTags = [...new Set(products.flatMap(product => product.tags || []))];
 
-    const formattedProducts = products.map(product => {
-      let formattedCollections = {
-        edges: []
-      };
-
+    const formattedProducts = products.map((product: any) => {
+      let formattedCollections = { edges: [] };
+      
       if (product.collections) {
         if (product.collections.edges) {
           formattedCollections = {
-            edges: product.collections.edges.map((edge: CollectionEdge) => ({
-              node: {
-                id: edge.node.id,
-                title: collectionsMap.get(edge.node.id)?.title || edge.node.title || '',
-                handle: collectionsMap.get(edge.node.id)?.handle || ''
+            edges: product.collections.edges.map((edge: any) => {
+              if (!edge.node) {
+                edge.node = { id: '', title: '' };
               }
-            }))
+              
+              const collectionId = edge.node.id;
+              const collectionInfo = collectionsMap.get(collectionId);
+              
+              return {
+                node: {
+                  id: edge.node.id,
+                  title: collectionInfo?.title || edge.node.title || '',
+                  handle: collectionInfo?.handle || edge.node.handle || ''
+                }
+              };
+            })
+          };
+        } else if (Array.isArray(product.collections)) {
+          formattedCollections = {
+            edges: product.collections.map((collection: any) => {
+              const collectionId = typeof collection === 'string' ? collection : collection.id;
+              const collectionInfo = collectionsMap.get(collectionId);
+              
+              return {
+                node: {
+                  id: collectionId || '',
+                  title: collectionInfo?.title || 
+                         (typeof collection !== 'string' ? collection.title : '') || '',
+                  handle: collectionInfo?.handle || 
+                          (typeof collection !== 'string' ? collection.handle : '') || ''
+                }
+              };
+            })
           };
         }
       }
-
+      
       return {
         ...product,
         _id: product._id.toString(),
@@ -329,20 +406,35 @@ export async function PUT(request: Request) {
       };
     }
     
+    // Format collections properly for database storage
+    const formattedCollections = {
+      edges: collections.map((collection: any) => {
+        // Handle both string IDs and object formats
+        if (typeof collection === 'string') {
+          return {
+            node: {
+              id: collection,
+              title: '' // Title will be populated when retrieved
+            }
+          };
+        } else {
+          return {
+            node: {
+              id: collection.id || '',
+              title: collection.title || ''
+            }
+          };
+        }
+      })
+    };
+    
     const updateData = {
       title: formData.get('title'),
       description: formData.get('description'),
       vendor: formData.get('vendor'),
       productType: formData.get('productType'),
       tags: JSON.parse(formData.get('tags') as string || '[]'),
-      collections: {
-        edges: collections.map((collection: any) => ({
-          node: {
-            id: collection.id || collection.node?.id || '',
-            title: collection.title || collection.node?.title || ''
-          }
-        }))
-      },
+      collections: formattedCollections,
       variants: variants,
       updatedAt: new Date().toISOString()
     };

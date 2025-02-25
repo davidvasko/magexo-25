@@ -66,7 +66,16 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
       formData.append('vendor', productData.vendor);
       formData.append('productType', productData.productType);
       formData.append('tags', JSON.stringify(productData.tags));
-      formData.append('collections', JSON.stringify(productData.collections));
+      
+      // Format collections properly for database storage
+      const selectedCollections = collections
+        .filter(collection => productData.collections.includes(collection.id))
+        .map(collection => ({
+          id: collection.id,
+          title: collection.title
+        }));
+      
+      formData.append('collections', JSON.stringify(selectedCollections));
 
       const defaultVariant = product.variants.edges[0]?.node;
       const otherVariants = product.variants.edges.slice(1);
@@ -115,10 +124,15 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
 
       setShowSuccess(true);
       
+      // Dispatch event immediately
+      window.dispatchEvent(new CustomEvent('productUpdated'));
+      
       setTimeout(() => {
         setShowSuccess(false);
         onClose();
-        router.refresh();
+        
+        // Force a complete refresh of the page
+        window.location.reload();
       }, 2000);
 
     } catch (error) {

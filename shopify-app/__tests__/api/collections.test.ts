@@ -14,7 +14,8 @@ jest.mock('next/server', () => ({
 }))
 
 const mockCollection = {
-  aggregate: jest.fn().mockReturnValue({
+  find: jest.fn().mockReturnValue({
+    sort: jest.fn().mockReturnThis(),
     toArray: jest.fn().mockResolvedValue([
       {
         _id: '507f1f77bcf86cd799439011',
@@ -57,7 +58,8 @@ describe('Collections API', () => {
   })
 
   it('handles database errors', async () => {
-    mockCollection.aggregate.mockReturnValueOnce({
+    mockCollection.find.mockReturnValueOnce({
+      sort: jest.fn().mockReturnThis(),
       toArray: jest.fn().mockRejectedValueOnce(new Error('Database error'))
     })
 

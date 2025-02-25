@@ -6,24 +6,10 @@ export async function GET() {
     const client = await clientPromise;
     const db = client.db("shopify-app");
     
-    const collections = await db.collection('collections')
-      .aggregate([
-        {
-          $group: {
-            _id: "$id", 
-            doc: { $first: "$$ROOT" } 
-          }
-        },
-        {
-          $replaceRoot: { newRoot: "$doc" } 
-        },
-        {
-          $sort: { title: 1 }
-        }
-      ])
-      .toArray();
+    // Fetch all collections directly without aggregation
+    const collections = await db.collection('collections').find({}).sort({ title: 1 }).toArray();
     
-   
+    // Format collections for consistent response
     const formattedCollections = collections.map(collection => ({
       id: collection.id || collection._id.toString(),
       title: collection.title,

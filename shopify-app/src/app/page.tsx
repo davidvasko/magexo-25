@@ -140,9 +140,12 @@ export default function HomePage() {
         let filteredList;
         
         if (selectedCategory === 'unassigned') {
-          filteredList = allProductsList.filter(product => 
-            !product.collections?.edges?.length
-          );
+          filteredList = allProductsList.filter(product => {
+            // Check if collections is undefined, null, empty object, or has empty edges array
+            return !product.collections || 
+                   !product.collections.edges || 
+                   product.collections.edges.length === 0;
+          });
         } else if (selectedCategory) {
           filteredList = allProductsList.filter(product => {
             const productCollections = product.collections?.edges || [];
@@ -337,6 +340,20 @@ export default function HomePage() {
     }
   }, [totalPages, productsPerPage]);
 
+  // Add this effect to listen for collection updates
+  useEffect(() => {
+    const handleCollectionsUpdated = () => {
+      // Refresh the page when collections are updated
+      window.location.reload();
+    };
+    
+    window.addEventListener('collectionsUpdated', handleCollectionsUpdated);
+    
+    return () => {
+      window.removeEventListener('collectionsUpdated', handleCollectionsUpdated);
+    };
+  }, []);
+
   return (
     <div className="max-w-[924px] mx-auto px-4">
       <CategoryList 
@@ -352,9 +369,14 @@ export default function HomePage() {
       </div>
       
       <div className="min-h-[400px]">
-        <h2 className="text-2xl font-bold mt-8 mb-4 text-neutral-900">
-          {selectedCategory ? 'Collection Products' : 'All Products'}
-        </h2>
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold mt-8 mb-4 text-neutral-900">
+            {selectedCategory ? 'Collection Products' : 'All Products'}
+          </h2>
+          <span className="text-sm font-medium text-neutral-600 mt-8 mb-4">
+            {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} 
+          </span>
+        </div>
         
         <div className="relative min-h-[800px]">
           {isLoading ? (
