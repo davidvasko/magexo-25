@@ -21,7 +21,7 @@ export default function AllProducts() {
       setLoading(true);
       setError(null);
       
-      const response = await getAllProducts(cursor);
+      const response = await getAllProducts(cursor || undefined);
       
       if (!response?.products?.edges) {
         throw new Error('No products found');

@@ -166,7 +166,7 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
       const data = await response.json();
       const mongoTags = data.tags || [];
       
-      const shopifyData = await getAllProducts(null);
+      const shopifyData = await getAllProducts(undefined);
       let shopifyTags = [];
       
       if (shopifyData && shopifyData.products && shopifyData.products.edges) {
@@ -192,7 +192,7 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
       const data = await response.json();
       const mongoVendors = data.vendors || [];
       
-      const shopifyData = await getAllProducts(null);
+      const shopifyData = await getAllProducts(undefined);
       let shopifyVendors = [];
       
       if (shopifyData && shopifyData.products && shopifyData.products.edges) {

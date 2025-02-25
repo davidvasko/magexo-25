@@ -96,7 +96,7 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
       const mongoData = await mongoResponse.json();
       const mongoTags = mongoData.tags || [];
 
-      const shopifyData = await getAllProducts(null);
+      const shopifyData = await getAllProducts(undefined);
       let shopifyTags = [];
       
       if (shopifyData && shopifyData.products && shopifyData.products.edges) {
@@ -119,7 +119,7 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
       const mongoData = await mongoResponse.json();
       const mongoVendors = mongoData.vendors || [];
       
-      const shopifyData = await getAllProducts(null);
+      const shopifyData = await getAllProducts(undefined);
       let shopifyVendors = [];
       
       if (shopifyData && shopifyData.products && shopifyData.products.edges) {
