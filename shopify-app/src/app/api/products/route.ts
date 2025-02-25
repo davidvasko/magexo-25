@@ -4,13 +4,14 @@ import { MongoProduct } from '../../lib/productSchema';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { getAllVendors } from '../../lib/shopify';
-import { ObjectId } from 'mongodb';
+import { ObjectId, Document, WithId } from 'mongodb';
 
 // Define interfaces for type safety
 interface CollectionEdge {
   node: {
     id: string;
     title?: string;
+    handle?: string;
   }
 }
 
@@ -20,6 +21,9 @@ interface ImageEdge {
     altText: string;
   }
 }
+
+// Define a type that combines MongoDB document with our MongoProduct
+type MongoDBProduct = WithId<Document> & Partial<MongoProduct>;
 
 export async function GET(request: Request) {
   try {
@@ -85,13 +89,13 @@ export async function GET(request: Request) {
     const products = await db.collection('products').find({}).toArray();
     const allTags = [...new Set(products.flatMap(product => product.tags || []))];
 
-    const formattedProducts = products.map((product: MongoProduct) => {
-      let formattedCollections = { edges: [] };
+    const formattedProducts = products.map((product: MongoDBProduct) => {
+      let formattedCollections = { edges: [] as CollectionEdge[] };
       
       if (product.collections) {
         if (product.collections.edges) {
           formattedCollections = {
-            edges: product.collections.edges.map((edge: { node: { id: string; title?: string; handle?: string } }) => {
+            edges: product.collections.edges.map((edge: any) => {
               if (!edge.node) {
                 edge.node = { id: '', title: '' };
               }
@@ -144,7 +148,8 @@ export async function GET(request: Request) {
             }
           }]
         },
-        tags: product.tags || []
+        tags: product.tags || [],
+        isCustom: product.isCustom || false
       };
     });
     

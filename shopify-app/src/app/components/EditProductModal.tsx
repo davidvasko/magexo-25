@@ -9,7 +9,17 @@ import { getAllProducts } from '../lib/shopify';
 interface EditProductModalProps {
   isOpen: boolean;
   onClose: () => void;
-  product: Product;
+  product: Product & {
+    collections?: {
+      edges: Array<{
+        node: {
+          id: string;
+          title: string;
+          handle?: string;
+        };
+      }>;
+    };
+  };
 }
 
 interface Collection {
@@ -171,7 +181,7 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
       
       if (shopifyData && shopifyData.products && shopifyData.products.edges) {
         shopifyTags = shopifyData.products.edges
-          .flatMap(edge => edge.node.tags || [])
+          .flatMap((edge: any) => edge.node.tags || [])
           .filter(Boolean);
       }
       
@@ -197,7 +207,7 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
       
       if (shopifyData && shopifyData.products && shopifyData.products.edges) {
         shopifyVendors = shopifyData.products.edges
-          .map(edge => edge.node.vendor)
+          .map((edge: any) => edge.node.vendor)
           .filter(Boolean);
       }
       
@@ -456,7 +466,7 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
                     <div className="space-y-2">
                       <select
                         multiple
-                        value={productData.collections}
+                        value={productData.collections as string[]}
                         onChange={e => setProductData(prev => ({
                           ...prev,
                           collections: Array.from(e.target.selectedOptions, option => option.value)

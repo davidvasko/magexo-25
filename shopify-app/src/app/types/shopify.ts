@@ -28,12 +28,38 @@ export interface Product {
   tags: string[];
   variants: {
     edges: Array<{
-      node: ProductVariant;
+      node: {
+        id: string;
+        title: string;
+        price: {
+          amount: string;
+          currencyCode: string;
+        };
+        compareAtPrice?: {
+          amount: string;
+          currencyCode: string;
+        } | null;
+        sku: string;
+        availableForSale: boolean;
+        stockQuantity?: number;
+      };
     }>;
   };
   images: {
     edges: Array<{
-      node: ProductImage;
+      node: {
+        url: string;
+        altText?: string;
+      };
+    }>;
+  };
+  collections?: {
+    edges: Array<{
+      node: {
+        id: string;
+        title: string;
+        handle?: string;
+      };
     }>;
   };
   createdAt: string;
