@@ -420,7 +420,7 @@ function HomePage() {
             </div>
           ) : (
             <div className="animate-fade-in" {...swipeHandlers}>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 min-[390px]:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                 {currentProducts.map((product: any) => (
                   <ProductCard key={product.id} product={product} />
                 ))}

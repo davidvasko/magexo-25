@@ -24,24 +24,29 @@ export default function VariantModal({ isOpen, onClose, productId }: VariantModa
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const formData = new FormData();
-    formData.append('isVariant', 'true');
-    formData.append('parentProductId', productId);
-    formData.append('title', variantData.title);
-    formData.append('price', variantData.price);
-    formData.append('compareAtPrice', variantData.compareAtPrice);
-    formData.append('sku', variantData.sku);
-    formData.append('stockQuantity', variantData.stockQuantity);
-    formData.append('availableForSale', (parseInt(variantData.stockQuantity) > 0).toString());
-
     try {
       const response = await fetch('/api/products', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          isVariant: true,
+          parentProductId: productId,
+          variant: {
+            title: variantData.title,
+            price: parseFloat(variantData.price),
+            compareAtPrice: variantData.compareAtPrice ? parseFloat(variantData.compareAtPrice) : null,
+            sku: variantData.sku,
+            stockQuantity: parseInt(variantData.stockQuantity),
+            availableForSale: parseInt(variantData.stockQuantity) > 0
+          }
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create variant');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create variant');
       }
 
       setShowSuccess(true);

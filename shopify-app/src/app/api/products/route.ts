@@ -166,58 +166,71 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData();
+    const data = await request.json();
     const client = await clientPromise;
     const db = client.db("shopify-app");
+    
+    // Handle variant creation
+    if (data.isVariant) {
+      const { parentProductId, variant } = data;
+      
+      // Validate required fields
+      if (!parentProductId || !variant.title || !variant.price) {
+        return NextResponse.json(
+          { error: 'Missing required fields' },
+          { status: 400 }
+        );
+      }
 
-    const isVariant = formData.get('isVariant') === 'true';
-    const parentProductId = formData.get('parentProductId');
+      // Find the parent product
+      const product = await db.collection('products').findOne({
+        _id: new ObjectId(parentProductId)
+      });
 
-    if (isVariant && parentProductId) {
-      const variant = {
-        id: `variant-${new Date().getTime()}`,
-        title: formData.get('title') as string,
+      if (!product) {
+        return NextResponse.json(
+          { error: 'Parent product not found' },
+          { status: 404 }
+        );
+      }
+
+      // Create the new variant
+      const newVariant = {
+        id: new ObjectId().toString(), // Generate a new ID for the variant
+        ...variant,
         price: {
-          amount: formData.get('price') as string || '0',
-          currencyCode: 'CZK'
+          amount: variant.price.toString(),
+          currencyCode: 'USD'
         },
-        compareAtPrice: {
-          amount: formData.get('compareAtPrice') as string || '',
-          currencyCode: 'CZK'
-        },
-        sku: formData.get('sku') as string || '',
-        stockQuantity: parseInt(formData.get('stockQuantity') as string || '0'),
-        availableForSale: parseInt(formData.get('stockQuantity') as string || '0') > 0
+        compareAtPrice: variant.compareAtPrice ? {
+          amount: variant.compareAtPrice.toString(),
+          currencyCode: 'USD'
+        } : null
       };
 
+      // Update the product with the new variant
       const result = await db.collection('products').updateOne(
-        { id: parentProductId },
-        { 
-          $push: { 
-            "variants.edges": { 
-              node: variant 
-            } 
-          } as any,
-          $set: {
-            updatedAt: new Date().toISOString()
+        { _id: new ObjectId(parentProductId) },
+        {
+          $push: {
+            'variants.edges': {
+              node: newVariant
+            }
           }
         }
       );
 
       if (result.modifiedCount === 0) {
         return NextResponse.json(
-          { success: false, error: 'Product not found' },
-          { status: 404 }
+          { error: 'Failed to add variant' },
+          { status: 500 }
         );
       }
 
-      return NextResponse.json({ 
-        success: true, 
-        variant 
-      });
+      return NextResponse.json({ success: true, variant: newVariant });
     }
 
-    const title = formData.get('title') as string;
+    const title = data.title as string;
     if (!title) {
       return NextResponse.json(
         { success: false, error: 'Title is required' },
@@ -228,7 +241,7 @@ export async function POST(request: Request) {
     const handle = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
     try {
-      const uploadedFiles = formData.getAll('images');
+      const uploadedFiles = data.images;
       let imageEdges: ImageEdge[] = [];
 
       if (uploadedFiles.length > 0) {
@@ -268,7 +281,7 @@ export async function POST(request: Request) {
         imageEdges = edgeResults.filter((edge): edge is ImageEdge => edge !== null);
       }
 
-      const collections = JSON.parse(formData.get('collections') as string || '[]');
+      const collections = JSON.parse(data.collections as string || '[]');
       const collectionEdges = collections.map((collectionId: string) => ({
         node: {
           id: collectionId,
@@ -279,25 +292,25 @@ export async function POST(request: Request) {
       const product = {
         id: `custom-${new Date().getTime()}`,
         title,
-        description: formData.get('description') as string || '',
+        description: data.description as string || '',
         handle,
-        productType: formData.get('productType') as string || '',
-        vendor: formData.get('vendor') as string || '',
-        tags: JSON.parse(formData.get('tags') as string || '[]'),
+        productType: data.productType as string || '',
+        vendor: data.vendor as string || '',
+        tags: JSON.parse(data.tags as string || '[]'),
         variants: {
           edges: [{
             node: {
               id: `variant-${new Date().getTime()}`,
               title: 'Default Variant',
               price: {
-                amount: formData.get('price') as string || '0',
+                amount: data.price as string || '0',
                 currencyCode: 'CZK'
               },
               compareAtPrice: {
-                amount: formData.get('compareAtPrice') as string || '',
+                amount: data.compareAtPrice as string || '',
                 currencyCode: 'CZK'
               },
-              sku: formData.get('sku') as string || '',
+              sku: data.sku as string || '',
               availableForSale: true
             }
           }]
