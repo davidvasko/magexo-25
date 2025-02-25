@@ -167,7 +167,7 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
       const mongoTags = data.tags || [];
       
       const shopifyData = await getAllProducts(undefined);
-      let shopifyTags = [];
+      let shopifyTags: string[] = [];
       
       if (shopifyData && shopifyData.products && shopifyData.products.edges) {
         shopifyTags = shopifyData.products.edges
@@ -175,7 +175,7 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
           .filter(Boolean);
       }
       
-      const allTags = [...new Set([...mongoTags, ...(Array.isArray(shopifyTags) ? shopifyTags : [])])];
+      const allTags = [...new Set([...mongoTags, ...shopifyTags])];
       setAvailableTags(Array.from(allTags));
     } catch (error) {
       console.error('Error fetching tags:', error);
@@ -193,7 +193,7 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
       const mongoVendors = data.vendors || [];
       
       const shopifyData = await getAllProducts(undefined);
-      let shopifyVendors = [];
+      let shopifyVendors: string[] = [];
       
       if (shopifyData && shopifyData.products && shopifyData.products.edges) {
         shopifyVendors = shopifyData.products.edges
@@ -201,10 +201,7 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
           .filter(Boolean);
       }
       
-      const allVendors = [...new Set([
-        ...mongoVendors,
-        ...(Array.isArray(shopifyVendors) ? shopifyVendors : [])
-      ])];
+      const allVendors = [...new Set([...mongoVendors, ...shopifyVendors])];
       
       setVendors(Array.from(allVendors));
     } catch (error) {

@@ -40,7 +40,7 @@ export default function AllProducts() {
   const handleNextPage = () => {
     if (products.length > 0) {
       const lastProduct = products[products.length - 1];
-      setCursor(lastProduct.cursor);
+      setCursor(lastProduct.cursor || null);
     }
   };
 
