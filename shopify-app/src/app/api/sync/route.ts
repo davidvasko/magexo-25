@@ -2,6 +2,67 @@ import { NextResponse } from 'next/server';
 import clientPromise from '../../lib/mongodb';
 import { getAllProducts, getAllCollections } from '../../lib/shopify';
 
+// Add interface definitions for proper typing
+interface ShopifyNode {
+  id: string;
+  title: string;
+  handle: string;
+  description?: string;
+}
+
+interface ShopifyEdge {
+  node: ShopifyNode;
+}
+
+interface ShopifyCollectionConnection {
+  collections?: {
+    edges: ShopifyEdge[];
+  };
+}
+
+interface ShopifyProductVariantNode {
+  id: string;
+  title: string;
+  price?: { amount: string; currencyCode: string };
+  compareAtPrice?: { amount: string; currencyCode: string };
+  sku?: string;
+  availableForSale?: boolean;
+}
+
+interface ShopifyProductVariantEdge {
+  node: ShopifyProductVariantNode;
+}
+
+interface ShopifyProductNode extends ShopifyNode {
+  productType?: string;
+  vendor?: string;
+  tags?: string[];
+  collections?: {
+    edges: ShopifyEdge[];
+  };
+  variants: {
+    edges: ShopifyProductVariantEdge[];
+  };
+  images?: {
+    edges: {
+      node: {
+        url: string;
+        altText?: string;
+      };
+    }[];
+  };
+}
+
+interface ShopifyProductEdge {
+  node: ShopifyProductNode;
+}
+
+interface ShopifyProductConnection {
+  products?: {
+    edges: ShopifyProductEdge[];
+  };
+}
+
 async function cleanupDuplicates(db: any) {
   const duplicateProducts = await db.collection('products').aggregate([
     {
@@ -43,9 +104,9 @@ export async function POST() {
     const existingProductIds = new Set(existingProducts.map(p => p.id));
     const existingCollectionIds = new Set(existingCollections.map(c => c.id));
 
-    const shopifyCollections = await getAllCollections(undefined);
+    const shopifyCollections: ShopifyCollectionConnection = await getAllCollections(undefined);
     
-    const collectionsToUpsert = shopifyCollections?.collections?.edges.map(edge => ({
+    const collectionsToUpsert = shopifyCollections?.collections?.edges.map((edge: ShopifyEdge) => ({
       id: edge.node.id,
       title: edge.node.title,
       handle: edge.node.handle,
@@ -66,13 +127,13 @@ export async function POST() {
       );
     }
 
-    const shopifyProducts = await getAllProducts(undefined);
+    const shopifyProducts: ShopifyProductConnection = await getAllProducts(undefined);
     
     console.log('Sync - Processing products:', {
       totalProducts: shopifyProducts?.products?.edges?.length
     });
 
-    const productsToUpsert = shopifyProducts?.products?.edges.map(edge => {
+    const productsToUpsert = shopifyProducts?.products?.edges.map((edge: ShopifyProductEdge) => {
       const product = edge.node;
       
       console.log(`Processing product ${product.title}:`, {
@@ -81,7 +142,7 @@ export async function POST() {
       });
 
       const formattedCollections = {
-        edges: (product.collections?.edges || []).map(colEdge => ({
+        edges: (product.collections?.edges || []).map((colEdge: ShopifyEdge) => ({
           node: {
             id: colEdge.node.id,
             title: colEdge.node.title,
@@ -103,7 +164,7 @@ export async function POST() {
         collections: formattedCollections,
         updatedAt: new Date().toISOString(),
         variants: {
-          edges: product.variants.edges.map(variant => ({
+          edges: product.variants.edges.map((variant: ShopifyProductVariantEdge) => ({
             node: {
               id: variant.node.id,
               title: variant.node.title,
