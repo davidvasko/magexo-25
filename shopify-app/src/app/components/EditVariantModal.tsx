@@ -66,8 +66,8 @@ export default function VariantModal({ isOpen, onClose, productId }: VariantModa
       <div className="relative bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-neutral-800">Add New Variant</h2>
-          <button onClick={onClose} className="text-neutral-500 hover:text-neutral-700">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <button onClick={onClose} className="text-neutral-500 hover:text-neutral-700 group">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="transition-transform duration-300 group-hover:rotate-90">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>

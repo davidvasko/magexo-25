@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Product } from '../types/shopify';
+import { getAllProducts } from '../lib/shopify';
 
 interface EditProductModalProps {
   isOpen: boolean;
@@ -151,21 +152,16 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
       const data = await response.json();
       const mongoTags = data.tags || [];
       
-      const shopifyTags = await getAllTags();
-      const allTags = new Set();
+      const shopifyData = await getAllProducts(null);
+      let shopifyTags = [];
       
-      // Add all tags from MongoDB
-      mongoTags.forEach(tag => {
-        allTags.add(tag);
-      });
-      
-      // Add all tags from Shopify with null check
-      if (shopifyTags && Array.isArray(shopifyTags)) {
-        shopifyTags.forEach(tag => {
-          allTags.add(tag);
-        });
+      if (shopifyData && shopifyData.products && shopifyData.products.edges) {
+        shopifyTags = shopifyData.products.edges
+          .flatMap(edge => edge.node.tags || [])
+          .filter(Boolean);
       }
       
+      const allTags = [...new Set([...mongoTags, ...(Array.isArray(shopifyTags) ? shopifyTags : [])])];
       setAvailableTags(Array.from(allTags));
     } catch (error) {
       console.error('Error fetching tags:', error);
@@ -182,20 +178,19 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
       const data = await response.json();
       const mongoVendors = data.vendors || [];
       
-      const shopifyVendors = await getAllVendors();
-      const allVendors = new Set();
+      const shopifyData = await getAllProducts(null);
+      let shopifyVendors = [];
       
-      // Add all vendors from MongoDB
-      mongoVendors.forEach(vendor => {
-        allVendors.add(vendor);
-      });
-      
-      // Add all vendors from Shopify with null check
-      if (shopifyVendors && Array.isArray(shopifyVendors)) {
-        shopifyVendors.forEach(vendor => {
-          allVendors.add(vendor);
-        });
+      if (shopifyData && shopifyData.products && shopifyData.products.edges) {
+        shopifyVendors = shopifyData.products.edges
+          .map(edge => edge.node.vendor)
+          .filter(Boolean);
       }
+      
+      const allVendors = [...new Set([
+        ...mongoVendors,
+        ...(Array.isArray(shopifyVendors) ? shopifyVendors : [])
+      ])];
       
       setVendors(Array.from(allVendors));
     } catch (error) {
@@ -236,8 +231,8 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
           <div className="p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-neutral-900">Edit Product</h2>
-              <button onClick={onClose} className="text-neutral-500 hover:text-neutral-700">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <button onClick={onClose} className="text-neutral-500 hover:text-neutral-700 group">
+                <svg className="w-6 h-6 transition-transform duration-300 group-hover:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>

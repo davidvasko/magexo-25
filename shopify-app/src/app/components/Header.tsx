@@ -25,7 +25,7 @@ export default function Header() {
           ? 'shadow-md bg-gray-50' 
           : 'shadow-none bg-white'
       }`}>
-        <div className="max-w-[924px] mx-auto px-4 flex justify-between items-center">
+        <div className="max-w-[924px] mx-auto pl-4 flex justify-between items-center">
           <Link href="/" className="block w-fit">
             <Image
               src="/magexo_logo1.png"
@@ -40,7 +40,7 @@ export default function Header() {
           
           <button 
             onClick={() => setIsModalOpen(true)}
-            className={`relative p-3 rounded-full transition-all duration-300 
+            className={`relative m-2 md:pr-0 rounded-full transition-all duration-300 
               hover:bg-[#ffe4d3] group overflow-hidden
               ${isModalOpen ? 'bg-[#ffe4d3]' : 'bg-transparent'}`}
             aria-label="Add Product"

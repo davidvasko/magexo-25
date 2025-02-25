@@ -16,7 +16,7 @@
     "@apollo/client": "^3.12.9",
     "@shopify/shopify-api": "^11.8.1",
     "graphql": "^16.10.0",
-    "mongodb": "^6.13.0",
+    "mongodb": "^6.13.1",
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
