@@ -85,13 +85,13 @@ export async function GET(request: Request) {
     const products = await db.collection('products').find({}).toArray();
     const allTags = [...new Set(products.flatMap(product => product.tags || []))];
 
-    const formattedProducts = products.map((product: any) => {
+    const formattedProducts = products.map((product: MongoProduct) => {
       let formattedCollections = { edges: [] };
       
       if (product.collections) {
         if (product.collections.edges) {
           formattedCollections = {
-            edges: product.collections.edges.map((edge: any) => {
+            edges: product.collections.edges.map((edge: { node: { id: string; title?: string; handle?: string } }) => {
               if (!edge.node) {
                 edge.node = { id: '', title: '' };
               }

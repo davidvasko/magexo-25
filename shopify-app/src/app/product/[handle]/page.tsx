@@ -2,6 +2,7 @@ import { getProduct } from '@/app/lib/shopify';
 import ProductDisplay from '@/app/components/ProductDisplay';
 import clientPromise from '@/app/lib/mongodb';
 import { notFound } from 'next/navigation';
+import { Product } from '@/app/types/shopify';
 
 export default async function ProductPage({ params }: { params: { handle: string } }) {
   try {
@@ -22,7 +23,7 @@ export default async function ProductPage({ params }: { params: { handle: string
       
       if (shopifyData?.product) {
         const variants = {
-          edges: shopifyData.product.variants.edges.map((edge: any) => ({
+          edges: shopifyData.product.variants.edges.map((edge: { node: any }) => ({
             node: {
               id: edge.node.id,
               title: edge.node.title,
