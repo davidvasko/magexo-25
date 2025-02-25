@@ -220,17 +220,25 @@ export default function EditProductModal({ isOpen, onClose, product }: EditProdu
         body: JSON.stringify({ title: newCollection }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setCollections(prev => [...prev, { id: data.collectionId, title: data.title }]);
-        setNewCollection('');
-        setIsCreatingCollection(false);
-      } else {
-        throw new Error('Failed to create collection');
-      }
+      if (!response.ok) throw new Error('Failed to create collection');
+
+      const data = await response.json();
+      
+      setCollections(prev => [...prev, {
+        id: data.collectionId,
+        title: data.title,
+        isShopifyCollection: data.isShopifyCollection
+      }]);
+
+      setProductData(prev => ({
+        ...prev,
+        collections: [...prev.collections, data.collectionId]
+      }));
+
+      setNewCollection('');
+      setIsCreatingCollection(false);
     } catch (error) {
       console.error('Error creating collection:', error);
-      alert('Failed to create collection');
     }
   };
 

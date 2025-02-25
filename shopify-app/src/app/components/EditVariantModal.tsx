@@ -53,7 +53,7 @@ export default function VariantModal({ isOpen, onClose, productId }: VariantModa
       }, 2000);
 
     } catch (error) {
-      console.error('Error creating variant:', error);
+      console.error('Error creating variant:', error instanceof Error ? error.message : 'Unknown error');
       alert('Failed to create variant');
     }
   };

@@ -80,7 +80,7 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
       const data = await response.json();
       const mongoCollections = data.collections || [];
 
-      setCollections(mongoCollections.map((collection: any) => ({
+      setCollections(mongoCollections.map((collection: { id: string; title: string; isShopifyCollection?: boolean }) => ({
         id: collection.id,
         title: collection.title,
         isShopifyCollection: collection.isShopifyCollection
