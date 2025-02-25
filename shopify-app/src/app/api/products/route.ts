@@ -150,8 +150,15 @@ export async function POST(request: Request) {
       let imageEdges: ImageEdge[] = [];
 
       if (uploadedFiles.length > 0) {
-        const edgeResults = await Promise.all(uploadedFiles.map(async (file: File) => {
+        const edgeResults = await Promise.all(uploadedFiles.map(async (value: FormDataEntryValue) => {
           try {
+            // Check if value is a File
+            if (!(value instanceof File)) {
+              console.error('Expected file but got string');
+              return null;
+            }
+            
+            const file = value;
             const bytes = await file.arrayBuffer();
             const buffer = Buffer.from(bytes);
             
