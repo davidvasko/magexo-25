@@ -299,7 +299,7 @@ export async function DELETE(request: Request) {
   } catch (error) {
     console.error('Error in DELETE products:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to delete product/variant' },
+      { error: error instanceof Error ? error.message : 'Failed to delete product/variant' },
       { status: 500 }
     );
   }
