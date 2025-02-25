@@ -43,7 +43,7 @@ export async function POST() {
     const existingProductIds = new Set(existingProducts.map(p => p.id));
     const existingCollectionIds = new Set(existingCollections.map(c => c.id));
 
-    const shopifyCollections = await getAllCollections(null);
+    const shopifyCollections = await getAllCollections(undefined);
     
     const collectionsToUpsert = shopifyCollections?.collections?.edges.map(edge => ({
       id: edge.node.id,
@@ -66,7 +66,7 @@ export async function POST() {
       );
     }
 
-    const shopifyProducts = await getAllProducts(null);
+    const shopifyProducts = await getAllProducts(undefined);
     
     console.log('Sync - Processing products:', {
       totalProducts: shopifyProducts?.products?.edges?.length
@@ -140,6 +140,8 @@ export async function POST() {
     });
   } catch (error) {
     console.error('Error syncing data:', error);
-    return NextResponse.json({ error: 'Failed to sync data' }, { status: 500 });
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Failed to sync data' 
+    }, { status: 500 });
   }
 } 
