@@ -3,7 +3,7 @@
 import CategoryList from './components/CategoryList';
 import ProductCard from './components/ProductCard';
 import ProductFilter from './components/ProductFilter';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { getAllProducts } from './lib/shopify';
 import { useSwipeable } from 'react-swipeable';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -73,7 +73,7 @@ const getProductsPerPage = () => {
   return 9;
 };
 
-export default function HomePage() {
+function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -209,7 +209,11 @@ export default function HomePage() {
     updateURL(1, categoryId);
   };
 
-  const handleFilterChange = (filteredProducts: Product[], filterState: FilterState) => {
+  const handleFilterChange = (
+    filteredProducts: Product[], 
+    filterState: FilterState, 
+    isInitialLoad?: boolean
+  ) => {
     setFilteredProducts(filteredProducts);
     
     const params = new URLSearchParams(window.location.search);
@@ -511,5 +515,14 @@ export default function HomePage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Wrap the HomePage component with Suspense
+export default function HomePageWrapper() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomePage />
+    </Suspense>
   );
 }
