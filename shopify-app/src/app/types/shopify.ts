@@ -21,11 +21,14 @@ export interface ProductImage {
 export interface Product {
   id: string;
   title: string;
-  description: string;
   handle: string;
+  description: string;
   productType: string;
   vendor: string;
   tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  isCustom?: boolean;
   variants: {
     edges: Array<{
       node: {
@@ -42,6 +45,7 @@ export interface Product {
         sku: string;
         availableForSale: boolean;
         stockQuantity?: number;
+        isShopifyVariant?: boolean;
       };
     }>;
   };
@@ -62,8 +66,6 @@ export interface Product {
       };
     }>;
   };
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface Collection {

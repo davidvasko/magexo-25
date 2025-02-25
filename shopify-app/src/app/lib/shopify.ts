@@ -324,7 +324,7 @@ export async function getProducts() {
       fetchPolicy: 'no-cache'
     });
 
-    const products = data.products.edges.map(({ node }) => node);
+    const products = data.products.edges.map(({ node }: { node: any }) => node);
     return { products };
   } catch (error) {
     console.error('Error fetching products:', error);

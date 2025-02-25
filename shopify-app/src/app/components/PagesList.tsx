@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import { getAllPages } from '../lib/shopify';
 import Pagination from './Pagination';
+import { Edge } from '../types/shopify';
 
 export default function PagesList() {
-  const [pages, setPages] = useState([]);
+  const [pages, setPages] = useState<Edge<any>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -18,7 +19,7 @@ export default function PagesList() {
   async function fetchPages() {
     try {
       setLoading(true);
-      const response = await getAllPages(cursor);
+      const response = await getAllPages(cursor || undefined);
       
       if (!response?.pages?.edges) {
         throw new Error('No pages found');
@@ -37,7 +38,7 @@ export default function PagesList() {
   const handleNextPage = () => {
     if (pages.length > 0) {
       const lastPage = pages[pages.length - 1];
-      setCursor(lastPage.cursor);
+      setCursor(lastPage.cursor || null);
     }
   };
 
@@ -53,7 +54,7 @@ export default function PagesList() {
     <div className="mb-8">
       <h2 className="text-2xl font-bold mb-6">Store Pages</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {pages.map(({ node: page }: any) => (
+        {pages.map(({ node: page }: Edge<any>) => (
           <div key={page.id} className="border rounded-lg p-4 shadow">
             <h3 className="text-xl font-semibold mb-2">{page.title}</h3>
             <div 
