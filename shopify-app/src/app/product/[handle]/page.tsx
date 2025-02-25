@@ -98,7 +98,7 @@ export default async function ProductPage({ params }: { params: { handle: string
       collections: customProduct.collections || { edges: [] }
     };
 
-    return <ProductDisplay product={serializedProduct} />;
+    return <ProductDisplay product={serializedProduct as unknown as Product} />;
   } catch (error) {
     console.error('Error loading product:', error);
     return notFound();
