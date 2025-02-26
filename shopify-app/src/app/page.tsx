@@ -49,10 +49,11 @@ export default async function Home() {
     const shopifyCollections = allCollections
       .filter(collection => collection.isShopifyCollection || collection.source === 'shopify')
       .map(collection => ({
-        // Use the original Shopify ID if available
         id: collection.id || collection._id.toString(),
         title: collection.title || '',
         handle: collection.handle || '',
+        description: collection.description || '',
+        products: collection.products || { edges: [] },
         isShopifyCollection: true,
       }));
 
@@ -63,6 +64,8 @@ export default async function Home() {
         id: collection._id.toString(),
         title: collection.title || '',
         handle: collection.handle || '',
+        description: collection.description || '',
+        products: collection.products || { edges: [] },
         isShopifyCollection: false,
       }));
 
