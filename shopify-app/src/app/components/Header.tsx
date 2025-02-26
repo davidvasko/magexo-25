@@ -25,7 +25,7 @@ export default function Header() {
           ? 'shadow-md bg-gray-50' 
           : 'shadow-none bg-white'
       }`}>
-        <div className="max-w-[924px] mx-auto pl-4 flex justify-between items-center">
+        <div className="max-w-[1024px] mx-auto pl-4 flex justify-between items-center">
           <Link href="/" className="block w-fit">
             <Image
               src="/magexo_logo1.png"

@@ -187,13 +187,13 @@ export default function ProductCard({ product }: ProductCardProps) {
         </div>
 
         <div className="p-4 flex flex-col flex-grow">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
+          <h3 className="text-m font-semibold text-gray-900 line-clamp-2">
             {currentProduct.title}
           </h3>
           
           <div className="mt-[10px] space-y-2">
             <div className="flex justify-between items-center">
-              <p className="text-lg font-bold text-gray-900">
+              <p className="text-m font-bold text-gray-900">
                 {parseFloat(price).toLocaleString('cs-CZ')} Kč
               </p>
               

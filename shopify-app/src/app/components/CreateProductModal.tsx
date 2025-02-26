@@ -11,23 +11,7 @@ interface Collection {
   isShopifyCollection?: boolean;
 }
 
-const vendorIcons = {
-  'Nike': (
-    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M21.07 6.93c-.77 1.01-1.77 1.92-2.96 2.71-2.63 1.75-5.06 2.63-7.28 2.63-1.51 0-2.77-.37-3.77-1.09-1.36-.99-2.04-2.44-2.04-4.35 0-1.8.62-3.39 1.87-4.76C8.15.71 9.71 0 11.58 0c1.14 0 2.31.27 3.51.82 1.2.54 2.82 1.51 4.86 2.9L21.07 6.93z"/>
-    </svg>
-  ),
-  'Adidas': (
-    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M2.5 2.5l19 19m-19 0l19-19m-9.5 0v19"/>
-    </svg>
-  ),
-  'Puma': (
-    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-    </svg>
-  ),
-};
+
 
 export interface CreateProductModalProps {
   isOpen: boolean;

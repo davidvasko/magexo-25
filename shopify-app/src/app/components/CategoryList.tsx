@@ -1,103 +1,36 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { getAllCollections } from '../lib/shopify';
+import { useState } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, FreeMode } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/free-mode';
+import { Collection } from '../types/shopify';
+
+interface Category {
+  id: string;
+  title: string;
+  handle?: string;
+  isShopifyCollection: boolean;
+}
 
 interface CategoryListProps {
-  onCategorySelect: (collectionId: string | null) => void;
-  selectedCategory: string | null;
+  initialCollections: Collection[];
+  onCategorySelect: (categoryId: string | null) => void;
 }
 
-interface Collection {
-  node: {
-    id: string;
-    title: string;
-    description?: string;
-    source?: 'shopify' | 'mongodb'; 
+export default function CategoryList({ initialCollections, onCategorySelect }: CategoryListProps) {
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [collections] = useState<Collection[]>(initialCollections);
+
+  const handleCategorySelect = (categoryId: string | null) => {
+    setSelectedCategory(categoryId);
+    onCategorySelect(categoryId);
   };
-}
-
-export default function CategoryList({ onCategorySelect, selectedCategory }: CategoryListProps) {
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchCollections = async () => {
-    try {
-      setLoading(true);
-      // Add cache-busting parameter
-      const timestamp = Date.now();
-      const response = await fetch(`/api/collections?t=${timestamp}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch collections: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      // Map all collections to the expected format
-      const formattedCollections = data.collections.map((collection: any) => ({
-        node: {
-          id: collection.id,
-          title: collection.title,
-          description: collection.description || '',
-          source: collection.source || 'mongodb'
-        }
-      }));
-      
-      setCollections(formattedCollections);
-    } catch (error) {
-      console.error('Error fetching collections:', error);
-      setError(error instanceof Error ? error.message : 'Failed to fetch collections');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCollections();
-
-    const handleCollectionsUpdate = () => {
-      fetchCollections();
-    };
-
-    window.addEventListener('collectionsUpdated', handleCollectionsUpdate);
-    
-    // Refresh collections periodically
-    const intervalId = setInterval(fetchCollections, 30000);
-    
-    return () => {
-      window.removeEventListener('collectionsUpdated', handleCollectionsUpdate);
-      clearInterval(intervalId);
-    };
-  }, []);
-
-  const handleCategorySelect = (collectionId: string | null) => {
-    onCategorySelect(collectionId);
-  };
-
-  if (loading) return <div>Loading categories...</div>;
-  if (error) return <div className="text-red-500">Error: {error}</div>;
-  if (!collections.length) return <div>No categories found.</div>;
-
-  // Sort collections: Shopify collections first, then user-created collections
-  const shopifyCollections = collections.filter(({ node }) => node.source === 'shopify');
-  const userCollections = collections.filter(({ node }) => node.source !== 'shopify');
 
   return (
-    <div className="max-w-[924px] mx-auto mb-12">
+    <div className="max-w-[1024px] mx-auto mb-12">
       <div className="flex items-center justify-between gap-2">
         <div className="w-[95%] overflow-hidden">
           <Swiper
@@ -117,12 +50,11 @@ export default function CategoryList({ onCategorySelect, selectedCategory }: Cat
             grabCursor={true}
             className="categories-swiper select-none"
           >
-            {/* All Products Button */}
-            <SwiperSlide key="all-products" className="!w-auto">
-              <button 
-                onClick={() => onCategorySelect(null)}
+            <SwiperSlide className="!w-auto">
+              <button
+                onClick={() => handleCategorySelect(null)}
                 className={`whitespace-nowrap px-6 py-2 rounded-full transition-all duration-300 select-none
-                  ${selectedCategory === null 
+                  ${!selectedCategory 
                     ? 'bg-[#fe6900] text-white hover:bg-[#e55f00]' 
                     : 'bg-gray-100 text-neutral-700 hover:bg-[#ffe4d3]'}`}
               >
@@ -130,47 +62,27 @@ export default function CategoryList({ onCategorySelect, selectedCategory }: Cat
               </button>
             </SwiperSlide>
 
-            {/* Unassigned Products Button */}
-            <SwiperSlide key="unassigned-products" className="!w-auto">
-              <button 
-                onClick={() => onCategorySelect('unassigned')}
+            <SwiperSlide className="!w-auto">
+              <button
+                onClick={() => handleCategorySelect('unassigned')}
                 className={`whitespace-nowrap px-6 py-2 rounded-full transition-all duration-300 select-none
-                  ${selectedCategory === 'unassigned' 
+                  ${selectedCategory === 'unassigned'
                     ? 'bg-[#fe6900] text-white hover:bg-[#e55f00]' 
-                    : 'bg-gray-100 text-neutral-700 hover:bg-[#ffe4d3]'}`}
+                    : 'bg-red-50 text-red-500 hover:bg-red-100'}`}
               >
                 Unassigned
               </button>
             </SwiperSlide>
 
-            {/* Shopify Collections */}
-            {shopifyCollections.map(({ node: collection }, index) => (
+            {collections.map((collection) => (
               <SwiperSlide 
-                key={collection.id ? `shopify-${collection.id}` : `shopify-index-${index}`} 
+                key={collection.id} 
                 className="!w-auto"
               >
                 <button 
-                  onClick={() => handleCategorySelect(collection.id === selectedCategory ? null : collection.id)}
+                  onClick={() => handleCategorySelect(collection.id)}
                   className={`whitespace-nowrap px-6 py-2 rounded-full transition-all duration-300 select-none
-                    ${collection.id === selectedCategory 
-                      ? 'bg-[#fe6900] text-white hover:bg-[#e55f00]' 
-                      : 'bg-gray-100 text-neutral-700 hover:bg-[#ffe4d3]'}`}
-                >
-                  {collection.title}
-                </button>
-              </SwiperSlide>
-            ))}
-
-            {/* User-created Collections */}
-            {userCollections.map(({ node: collection }, index) => (
-              <SwiperSlide 
-                key={collection.id ? `user-${collection.id}` : `user-index-${index}`} 
-                className="!w-auto"
-              >
-                <button 
-                  onClick={() => handleCategorySelect(collection.id === selectedCategory ? null : collection.id)}
-                  className={`whitespace-nowrap px-6 py-2 rounded-full transition-all duration-300 select-none
-                    ${collection.id === selectedCategory 
+                    ${selectedCategory === collection.id 
                       ? 'bg-[#fe6900] text-white hover:bg-[#e55f00]' 
                       : 'bg-gray-100 text-neutral-700 hover:bg-[#ffe4d3]'}`}
                 >
@@ -181,8 +93,7 @@ export default function CategoryList({ onCategorySelect, selectedCategory }: Cat
           </Swiper>
         </div>
 
-        {/* Navigation Buttons */}
-        <div className="flex gap-1 flex-shrink-0 w-[40px] "> 
+        <div className="flex gap-1 flex-shrink-0 w-[40px]">
           <button 
             className="h-[24px] w-4 flex items-center justify-center bg-transparent text-[#fe6900] hover:bg-gray-50 swiper-button-prev select-none"
             aria-label="Previous"

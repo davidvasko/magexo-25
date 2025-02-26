@@ -5,6 +5,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { getAllVendors } from '../../lib/shopify';
 import { ObjectId, Document, WithId } from 'mongodb';
+import { getCollection } from '../../lib/mongodb';
 
 // Define interfaces for type safety
 interface CollectionEdge {
@@ -314,54 +315,75 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const productId = searchParams.get('id');
+    const id = searchParams.get('id');
     const variantId = searchParams.get('variantId');
 
-    if (!productId) {
+    if (!id) {
       return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
     }
 
-    const client = await clientPromise;
-    const db = client.db("shopify-app");
-
+    const collection = await getCollection('products');
+    
+    // If variantId is provided, we're deleting a variant
     if (variantId) {
-      const product = await db.collection('products').findOne({ id: productId });
-
+      const product = await collection.findOne({ _id: new ObjectId(id) });
+      
       if (!product) {
         return NextResponse.json({ error: 'Product not found' }, { status: 404 });
       }
 
+      // Check if this is the only variant
+      if (product.variants.edges.length <= 1) {
+        return NextResponse.json({ 
+          error: 'Cannot delete the default variant' 
+        }, { status: 400 });
+      }
+
+      // Check if trying to delete the default variant (first variant)
+      const isDefaultVariant = product.variants.edges[0].node.id === variantId;
+      if (isDefaultVariant) {
+        return NextResponse.json({ 
+          error: 'Cannot delete the default variant' 
+        }, { status: 400 });
+      }
+
+      // Filter out the variant to be deleted
       const updatedVariants = {
         edges: product.variants.edges.filter(
-          ({ node }: { node: any }) => node.id !== variantId
+          (edge: any) => edge.node.id !== variantId
         )
       };
 
-      const result = await db.collection('products').updateOne(
-        { id: productId },
-        { $set: { variants: updatedVariants } }
+      // Update the product with the new variants array
+      const result = await collection.updateOne(
+        { _id: new ObjectId(id) },
+        { 
+          $set: { 
+            variants: updatedVariants,
+            updatedAt: new Date().toISOString()
+          } 
+        }
       );
 
-      if (result.matchedCount === 0) {
-        return NextResponse.json({ error: 'Failed to update product' }, { status: 404 });
+      if (result.modifiedCount === 0) {
+        return NextResponse.json({ error: 'Failed to delete variant' }, { status: 400 });
       }
 
       return NextResponse.json({ success: true });
     }
 
-    const result = await db.collection('products').deleteOne({ id: productId });
-
+    // If no variantId, we're deleting the entire product
+    const result = await collection.deleteOne({ _id: new ObjectId(id) });
+    
     if (result.deletedCount === 0) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
+
   } catch (error) {
-    console.error('Error in DELETE products:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete product/variant' },
-      { status: 500 }
-    );
+    console.error('Error in DELETE /api/products:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 

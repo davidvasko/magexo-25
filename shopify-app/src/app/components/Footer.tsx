@@ -29,7 +29,7 @@ export default function Footer() {
 
   return (
     <footer className="bg-white border-t">
-      <div className="max-w-[924px] mx-auto px-4 py-8">
+      <div className="max-w-[1024px] mx-auto px-4 py-8">
         <div className="text-center text-sm text-black">
           © {new Date().getFullYear()} Magexo. All rights reserved.
         </div>

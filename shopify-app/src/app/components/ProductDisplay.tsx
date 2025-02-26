@@ -84,7 +84,7 @@ export default function ProductDisplay({ product }: ProductDisplayProps) {
   return (
     <>
       <div className="px-6 lg:px-8 py-8">
-        <div className="max-w-[924px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="max-w-[1024px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Product Images */}
           <div className="relative">
             {product.images.edges.length > 0 ? (

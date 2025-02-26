@@ -141,7 +141,7 @@ export default function ProductFilter({ products, onFilterChange }: ProductFilte
   const allTags = [...new Set(products.flatMap(p => p.tags || []))];
 
   return (
-    <div className="bg-white shadow-md rounded-xl p-4 max-w-[924px] mx-auto">
+    <div className="bg-white shadow-md rounded-xl p-4 max-w-[1024px] mx-auto">
       <div className="flex justify-between items-center mb-4">
         <div className="flex gap-4 items-center">
           <h2 className="text-xl font-bold text-neutral-800">Filter Products</h2>
