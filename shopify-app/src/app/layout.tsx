@@ -8,7 +8,7 @@ import Providers from './components/Providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Magexo Shopify Store',
+  title: 'Magexo Shopify API',
   description: 'Your trusted partner in e-commerce solutions',
 }
 
