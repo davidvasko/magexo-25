@@ -40,7 +40,9 @@ export default async function Home() {
       },
       images: {
         edges: product.images?.edges || []
-      }
+      },
+      createdAt: product.createdAt || new Date().toISOString(),
+      updatedAt: product.updatedAt || new Date().toISOString()
     }));
 
     // Separate Shopify collections from custom collections
@@ -67,10 +69,6 @@ export default async function Home() {
     // Combine collections with Shopify collections first
     const collections = [...shopifyCollections, ...customCollections]
       .filter(collection => collection.title && collection.id);
-
-    // Debug logs
-    console.log('Sample Product Collections:', serializedProducts[0]?.collections?.edges);
-    console.log('Available Collections:', collections);
 
     return (
       <div className="container mx-auto px-4">
