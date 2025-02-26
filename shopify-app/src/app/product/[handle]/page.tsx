@@ -49,22 +49,28 @@ async function getProductData(handle: string) {
     const client = await clientPromise;
     const db = client.db("shopify-app");
 
+    // First try to find by handle
     let customProduct = await db.collection('products').findOne({ 
       $or: [
         { handle: handle },
-        { 'handle': handle },
-        { handle: decodeURIComponent(handle) }
+        { handle: handle.toLowerCase() }, // Add lowercase check
+        { handle: decodeURIComponent(handle) },
+        { id: { $regex: new RegExp(handle, 'i') } }, // Add ID check
+        { 'variants.edges.node.id': handle } // Add variant ID check
       ]
     });
 
     if (!customProduct) {
+      // If not found, try Shopify
       const shopifyData = await getProduct(handle);
       if (!shopifyData?.product) {
+        console.log('Product not found:', handle); // Debug log
         return null;
       }
       return shopifyData.product;
     }
 
+    console.log('Found product:', customProduct); // Debug log
     return convertToPlainObject(customProduct);
   } catch (error) {
     console.error('Error loading product:', error);
