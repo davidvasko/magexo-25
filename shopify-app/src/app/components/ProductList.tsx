@@ -46,7 +46,7 @@ export default function ProductList({ initialProducts, initialCollections }: Pro
         onFilterChange={setFilteredProducts} 
       />
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 max-w-[924px] mx-auto mt-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 max-w-[1024px] mx-auto mt-12">
         {filteredProducts.length > 0 ? (
           filteredProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
