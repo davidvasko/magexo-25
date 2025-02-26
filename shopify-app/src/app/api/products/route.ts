@@ -244,7 +244,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, variant: newVariant });
     }
 
-    const title = data.title as string;
+    const { title } = data;
     if (!title) {
       return NextResponse.json(
         { success: false, error: 'Title is required' },
@@ -254,102 +254,53 @@ export async function POST(request: Request) {
 
     const handle = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-    try {
-      const uploadedFiles = data.images;
-      let imageEdges: ImageEdge[] = [];
-
-      if (uploadedFiles.length > 0) {
-        const edgeResults = await Promise.all(uploadedFiles.map(async (value: FormDataEntryValue) => {
-          try {
-            // Check if value is a File
-            if (!(value instanceof File)) {
-              console.error('Expected file but got string');
-              return null;
-            }
-            
-            const file = value;
-            const bytes = await file.arrayBuffer();
-            const buffer = Buffer.from(bytes);
-            
-            const originalExt = file.name.split('.').pop();
-            const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${originalExt}`;
-            
-            const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-            await mkdir(uploadDir, { recursive: true });
-            
-            const filepath = path.join(uploadDir, filename);
-            await writeFile(filepath, buffer);
-            
-            return {
-              node: {
-                url: `/uploads/${filename}`,
-                altText: title
-              }
-            } as ImageEdge;
-          } catch (imageError) {
-            console.error('Error processing image:', imageError);
-            return null;
+    const product = {
+      id: `custom-${new Date().getTime()}`,
+      title,
+      description: data.description || '',
+      handle,
+      productType: data.productType || '',
+      vendor: data.vendor || '',
+      tags: data.tags || [],
+      variants: {
+        edges: [{
+          node: {
+            id: `variant-${new Date().getTime()}`,
+            title: 'Default Variant',
+            price: {
+              amount: data.price || '0',
+              currencyCode: 'CZK'
+            },
+            compareAtPrice: data.compareAtPrice ? {
+              amount: data.compareAtPrice,
+              currencyCode: 'CZK'
+            } : null,
+            sku: data.sku || '',
+            availableForSale: true,
+            stockQuantity: parseInt(data.stockQuantity) || 0
           }
-        }));
+        }]
+      },
+      images: { edges: [] },
+      collections: { 
+        edges: (data.collections || []).map((collectionId: string) => ({
+          node: {
+            id: collectionId,
+            title: ''
+          }
+        }))
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isCustom: true
+    };
 
-        imageEdges = edgeResults.filter((edge): edge is ImageEdge => edge !== null);
-      }
+    await db.collection('products').insertOne(product);
 
-      const collections = JSON.parse(data.collections as string || '[]');
-      const collectionEdges = collections.map((collectionId: string) => ({
-        node: {
-          id: collectionId,
-          title: ''
-        }
-      }));
-      
-      const product = {
-        id: `custom-${new Date().getTime()}`,
-        title,
-        description: data.description as string || '',
-        handle,
-        productType: data.productType as string || '',
-        vendor: data.vendor as string || '',
-        tags: JSON.parse(data.tags as string || '[]'),
-        variants: {
-          edges: [{
-            node: {
-              id: `variant-${new Date().getTime()}`,
-              title: 'Default Variant',
-              price: {
-                amount: data.price as string || '0',
-                currencyCode: 'CZK'
-              },
-              compareAtPrice: {
-                amount: data.compareAtPrice as string || '',
-                currencyCode: 'CZK'
-              },
-              sku: data.sku as string || '',
-              availableForSale: true
-            }
-          }]
-        },
-        images: { edges: imageEdges },
-        collections: { edges: collectionEdges },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isCustom: true
-      };
-
-      await db.collection('products').insertOne(product);
-
-      return NextResponse.json({ 
-        success: true, 
-        product 
-      });
-
-    } catch (processError) {
-      console.error('Error processing request:', processError);
-      return NextResponse.json(
-        { success: false, error: 'Error processing request: ' + (processError instanceof Error ? processError.message : String(processError)) },
-        { status: 500 }
-      );
-    }
+    return NextResponse.json({ 
+      success: true, 
+      product 
+    });
 
   } catch (error) {
     console.error('Error in POST products:', error);

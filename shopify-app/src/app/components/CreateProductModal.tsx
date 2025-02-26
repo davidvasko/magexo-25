@@ -67,6 +67,7 @@ export default function CreateProductModal({ isOpen, onClose, mode = 'product', 
   const [collections, setCollections] = useState<Collection[]>([]);
 
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -163,36 +164,49 @@ export default function CreateProductModal({ isOpen, onClose, mode = 'product', 
   };
 
   const handleCreateCollection = async () => {
+    if (!newCollection.trim()) return;
+    
+    setIsCreatingCollection(true);
     try {
       const response = await fetch('/api/collections', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ title: newCollection }),
+        body: JSON.stringify({ title: newCollection.trim() }),
       });
 
-      if (!response.ok) throw new Error('Failed to create collection');
-
       const data = await response.json();
-      
-      setCollections(prev => [...prev, {
-        id: data.collectionId,
-        title: data.title,
-        isShopifyCollection: data.isShopifyCollection
-      }]);
+      console.log('Collection creation response:', data); // Debug log
 
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create collection');
+      }
+
+      // Add the new collection to the list with the correct ID from the response
+      const newCollectionId = data.collectionId; // Changed from data.collection.id
+      const newCollectionTitle = newCollection.trim();
+
+      setCollections(prev => [...prev, { 
+        id: newCollectionId, 
+        title: newCollectionTitle,
+        isShopifyCollection: false
+      }]);
+      
+      // Select the newly created collection
       setProductData(prev => ({
         ...prev,
-        collections: [...prev.collections, data.collectionId]
+        collections: [...prev.collections, newCollectionId]
       }));
-
+      
+      // Clear the input and hide the collection creation form
       setNewCollection('');
       setIsCreatingCollection(false);
 
-      window.dispatchEvent(new CustomEvent('collectionsUpdated'));
     } catch (error) {
       console.error('Error creating collection:', error);
+      alert(error instanceof Error ? error.message : 'Failed to create collection');
+      setIsCreatingCollection(false);
     }
   };
 
@@ -209,46 +223,58 @@ export default function CreateProductModal({ isOpen, onClose, mode = 'product', 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const formData = new FormData();
-    Object.entries(productData).forEach(([key, value]) => {
-      if (key === 'images') {
-        (value as File[]).forEach((image: File) => {
-          formData.append('images', image);
-        });
-      } else if (key === 'collections' || key === 'tags') {
-        formData.append(key, JSON.stringify(value));
-      } else {
-        formData.append(key, value.toString());
-      }
-    });
-    formData.append('stockQuantity', productData.stockQuantity);
-    formData.append('availableForSale', (parseInt(productData.stockQuantity) > 0).toString());
+    setIsSubmitting(true);
 
     try {
+      // Create a regular object instead of FormData
+      const productPayload = {
+        title: productData.title,
+        description: productData.description,
+        price: productData.price,
+        compareAtPrice: productData.compareAtPrice,
+        sku: productData.sku,
+        vendor: productData.vendor,
+        productType: productData.productType,
+        stockQuantity: productData.stockQuantity,
+        tags: productData.tags,
+        collections: productData.collections,
+      };
+
       const response = await fetch('/api/products', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(productPayload),
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      console.log('Raw server response:', responseText);
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create product');
+        throw new Error(`Failed to create product: ${response.status} - ${responseText}`);
+      }
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse response:', responseText);
+        throw new Error(`Server returned invalid JSON: ${responseText}`);
       }
 
       setShowSuccess(true);
-      
       setTimeout(() => {
         setShowSuccess(false);
         onClose();
         router.refresh();
-        window.location.href = window.location.href;
       }, 2000);
 
     } catch (error) {
       console.error('Error creating product:', error);
-      alert((error as Error).message || 'Failed to create product. Please try again.');
+      alert(error instanceof Error ? error.message : 'Failed to create product');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
