@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, FreeMode } from 'swiper/modules';
 import 'swiper/css';
@@ -23,11 +23,39 @@ interface CategoryListProps {
 export default function CategoryList({ initialCollections, onCategorySelect }: CategoryListProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [collections] = useState<Collection[]>(initialCollections);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleCategorySelect = (categoryId: string | null) => {
     setSelectedCategory(categoryId);
     onCategorySelect(categoryId);
   };
+
+  if (!mounted) {
+    return (
+      <div className="max-w-[1024px] mx-auto mb-12">
+        <div className="flex items-center justify-between gap-2">
+          <div className="w-[95%] overflow-hidden">
+            <div className="flex gap-3">
+              {[...Array(5)].map((_, i) => (
+                <div 
+                  key={i} 
+                  className="h-[36px] w-[120px] rounded-full bg-gray-100 animate-pulse"
+                />
+              ))}
+            </div>
+          </div>
+          <div className="w-[40px] flex gap-1">
+            <div className="h-[24px] w-4 bg-gray-100 rounded" />
+            <div className="h-[24px] w-4 bg-gray-100 rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1024px] mx-auto mb-12">
@@ -131,6 +159,9 @@ export default function CategoryList({ initialCollections, onCategorySelect }: C
         .swiper-button-disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+        .swiper-slide {
+          margin-right: 12px !important;
         }
       `}</style>
     </div>

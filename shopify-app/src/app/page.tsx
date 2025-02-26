@@ -75,10 +75,12 @@ export default async function Home() {
 
     return (
       <div className="container mx-auto px-4">
-        <ProductList 
-          initialProducts={serializedProducts} 
-          initialCollections={collections}
-        />
+        <Suspense fallback={<div>Loading...</div>}>
+          <ProductList 
+            initialProducts={serializedProducts} 
+            initialCollections={collections}
+          />
+        </Suspense>
       </div>
     );
   } catch (error) {
