@@ -112,7 +112,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       onMouseLeave={() => setIsHovered(false)}
     >
       <div 
-        className="group relative bg-white rounded-xl overflow-hidden shadow-md hover:animate-card-hover transition-all duration-300 h-full md:h-[420px] flex flex-col cursor-pointer w-full"
+        className="group relative bg-white rounded-xl overflow-hidden shadow-[0_-2px_10px_rgba(0,0,0,0.05),0_4px_15px_rgba(0,0,0,0.1)] hover:animate-card-hover transition-all duration-300 h-full md:h-[420px] flex flex-col cursor-pointer w-full"
       >
         <div className="aspect-square relative overflow-hidden bg-white">
           {(firstImage && firstImage.url) ? (

@@ -46,6 +46,7 @@ export default function ProductList({ initialProducts, initialCollections }: Pro
     }
 
     setFilteredProducts(newFilteredProducts);
+    setCurrentPage(1); // Reset to first page when category changes
   }, [selectedCategory, initialProducts]);
 
   const indexOfLastProduct = currentPage * productsPerPage;

@@ -24,14 +24,17 @@ export default function CategoryList({ initialCollections, onCategorySelect }: C
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [collections] = useState<Collection[]>(initialCollections);
   const [mounted, setMounted] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   const handleCategorySelect = (categoryId: string | null) => {
-    setSelectedCategory(categoryId);
-    onCategorySelect(categoryId);
+    if (!isDragging) {
+      setSelectedCategory(categoryId);
+      onCategorySelect(categoryId);
+    }
   };
 
   if (!mounted) {
@@ -69,37 +72,42 @@ export default function CategoryList({ initialCollections, onCategorySelect }: C
             }}
             freeMode={{
               enabled: true,
-              momentum: true,
-              momentumRatio: 0.25,
-              momentumVelocityRatio: 0.5,
+              sticky: false,
+              momentum: false
+            }}
+            onSliderFirstMove={() => setIsDragging(true)}
+            onTouchEnd={() => {
+              setTimeout(() => setIsDragging(false), 10);
             }}
             slidesPerView="auto"
             spaceBetween={12}
             grabCursor={true}
+            resistance={true}
+            resistanceRatio={0.85}
             className="categories-swiper select-none"
           >
             <SwiperSlide className="!w-auto">
-              <button
-                onClick={() => handleCategorySelect(null)}
+              <div 
                 className={`whitespace-nowrap px-6 py-2 rounded-full transition-all duration-300 select-none
                   ${!selectedCategory 
                     ? 'bg-[#fe6900] text-white hover:bg-[#e55f00]' 
                     : 'bg-gray-100 text-neutral-700 hover:bg-[#ffe4d3]'}`}
+                onClick={() => !isDragging && handleCategorySelect(null)}
               >
                 All Products
-              </button>
+              </div>
             </SwiperSlide>
 
             <SwiperSlide className="!w-auto">
-              <button
-                onClick={() => handleCategorySelect('unassigned')}
+              <div
                 className={`whitespace-nowrap px-6 py-2 rounded-full transition-all duration-300 select-none
                   ${selectedCategory === 'unassigned'
                     ? 'bg-[#fe6900] text-white hover:bg-[#e55f00]' 
                     : 'bg-red-50 text-red-500 hover:bg-red-100'}`}
+                onClick={() => !isDragging && handleCategorySelect('unassigned')}
               >
                 Unassigned
-              </button>
+              </div>
             </SwiperSlide>
 
             {collections.map((collection) => (
@@ -107,15 +115,15 @@ export default function CategoryList({ initialCollections, onCategorySelect }: C
                 key={collection.id} 
                 className="!w-auto"
               >
-                <button 
-                  onClick={() => handleCategorySelect(collection.id)}
+                <div 
                   className={`whitespace-nowrap px-6 py-2 rounded-full transition-all duration-300 select-none
                     ${selectedCategory === collection.id 
                       ? 'bg-[#fe6900] text-white hover:bg-[#e55f00]' 
                       : 'bg-gray-100 text-neutral-700 hover:bg-[#ffe4d3]'}`}
+                  onClick={() => !isDragging && handleCategorySelect(collection.id)}
                 >
                   {collection.title}
-                </button>
+                </div>
               </SwiperSlide>
             ))}
           </Swiper>
@@ -162,6 +170,11 @@ export default function CategoryList({ initialCollections, onCategorySelect }: C
         }
         .swiper-slide {
           margin-right: 12px !important;
+          touch-action: none !important;
+        }
+        .swiper-slide button {
+          pointer-events: auto;
+          touch-action: none !important;
         }
       `}</style>
     </div>
